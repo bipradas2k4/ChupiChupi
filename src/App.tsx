@@ -75,23 +75,26 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // 1. Parse URL for direct public letterbox links (e.g. /u/anirban or ?u=anirban)
+    // 1. Parse URL for direct public letterbox links (e.g. /u/anirban, ?u=anirban, /#/u/anirban)
     const path = window.location.pathname;
+    const hash = window.location.hash;
     const searchParams = new URLSearchParams(window.location.search);
     const uParam = searchParams.get('u');
 
-    if (uParam) {
-      setLetterboxUsername(uParam);
-      setCurrentView('letterbox');
-    } else if (path.startsWith('/u/')) {
-      const parsedName = path.replace('/u/', '').replace(/\/$/, '');
-      if (parsedName) {
-        setLetterboxUsername(parsedName);
-        setCurrentView('letterbox');
+    let targetUsername = uParam;
+    if (!targetUsername) {
+      const match = path.match(/^\/u\/([^/?#]+)/i) || hash.match(/^#\/u\/([^/?#]+)/i);
+      if (match && match[1]) {
+        targetUsername = decodeURIComponent(match[1]).trim().toLowerCase().replace(/^@/, '');
       }
-    } else if (path === '/dashboard' || window.location.hash.includes('access_token=') || window.location.search.includes('code=')) {
+    }
+
+    if (targetUsername) {
+      setLetterboxUsername(targetUsername);
+      setCurrentView('letterbox');
+    } else if (path === '/dashboard' || hash.includes('dashboard') || hash.includes('access_token=') || window.location.search.includes('code=')) {
       setCurrentView('dashboard');
-    } else if (path === '/auth') {
+    } else if (path === '/auth' || hash.includes('auth')) {
       setCurrentView('auth');
     }
 
@@ -102,13 +105,15 @@ export const App: React.FC = () => {
     // 2. Listen to browser back/forward buttons
     const handlePopState = () => {
       const p = window.location.pathname;
-      if (p.startsWith('/u/')) {
-        const u = p.replace('/u/', '').replace(/\/$/, '');
+      const h = window.location.hash;
+      const match = p.match(/^\/u\/([^/?#]+)/i) || h.match(/^#\/u\/([^/?#]+)/i);
+      if (match && match[1]) {
+        const u = decodeURIComponent(match[1]).trim().toLowerCase().replace(/^@/, '');
         setLetterboxUsername(u);
         setCurrentView('letterbox');
-      } else if (p === '/dashboard') {
+      } else if (p === '/dashboard' || h.includes('dashboard')) {
         setCurrentView('dashboard');
-      } else if (p === '/auth') {
+      } else if (p === '/auth' || h.includes('auth')) {
         setCurrentView('auth');
       } else {
         setCurrentView('landing');

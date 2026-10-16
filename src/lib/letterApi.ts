@@ -188,6 +188,32 @@ export async function getPublicProfile(username: string): Promise<{ profile: Pro
     return { profile: found, isRealBackend: false };
   }
 
+  // Cross-device / mobile seamless resolution:
+  // When opened on mobile via WhatsApp or social links, dynamically initialize the recipient letterbox
+  const cleanUser = cleanUsername.replace(/^@/, '').trim();
+  if (cleanUser && cleanUser.length >= 2 && !cleanUser.includes('ghost_user')) {
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const urlName = searchParams?.get('name');
+    const urlPrompt = searchParams?.get('p');
+
+    const dynamicProfile: Profile = {
+      id: `usr_${cleanUser}`,
+      username: cleanUser,
+      display_name: urlName || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
+      avatar_url: null,
+      prompt: urlPrompt || 'আমাকে তোমার গোপন মনের কথা বলো... 🤫',
+      bio: 'বেনামী চিঠি পাঠানোর চিঠি বাক্স',
+      inbox_paused: false,
+      is_banned: false,
+      role: 'user',
+      envelope_theme: 'vintage_burgundy',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    saveLocalProfile(dynamicProfile);
+    return { profile: dynamicProfile, isRealBackend: false };
+  }
+
   return { profile: null, isRealBackend: false, error: 'প্রাপকের চিঠি বাক্স খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম পরীক্ষা করুন।' };
 }
 
