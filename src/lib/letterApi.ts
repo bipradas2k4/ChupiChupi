@@ -262,6 +262,40 @@ export async function sendAnonymousLetter(payload: SubmitAnonymousPayload): Prom
       });
 
       if (error) {
+        // Fallback to direct insertion into public.messages if RPC function is missing or errored
+        try {
+          const { data: recipient } = await client
+            .from('profiles')
+            .select('id, username, inbox_paused')
+            .ilike('username', username)
+            .maybeSingle();
+
+          if (recipient) {
+            if (recipient.inbox_paused) {
+              return { success: false, error: 'এই চিঠি বাক্সটি বর্তমানে সাময়িকভাবে বন্ধ আছে (Letterbox paused).' };
+            }
+            const { data: insertedMsg, error: insertErr } = await client
+              .from('messages')
+              .insert({
+                recipient_id: recipient.id,
+                category,
+                content
+              })
+              .select('id, created_at')
+              .maybeSingle();
+
+            if (!insertErr && insertedMsg) {
+              return {
+                success: true,
+                message_id: insertedMsg.id,
+                recipient_username: recipient.username,
+                delivered_at: insertedMsg.created_at
+              };
+            }
+          }
+        } catch {
+          // ignore fallback error and report main error
+        }
         return { success: false, error: error.message };
       }
 

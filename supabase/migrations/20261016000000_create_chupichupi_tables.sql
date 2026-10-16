@@ -8,6 +8,7 @@ create extension if not exists "pgcrypto";
 -- Profiles table
 create table if not exists public.profiles (
     id uuid primary key references auth.users(id) on delete cascade,
+    email text,
     username text unique not null,
     display_name text not null,
     avatar_url text,
@@ -21,6 +22,9 @@ create table if not exists public.profiles (
     updated_at timestamptz not null default now(),
     constraint username_format check (username ~* '^[a-zA-Z0-9_]{3,30}$')
 );
+
+-- Ensure email column exists if upgrading existing table
+alter table public.profiles add column if not exists email text;
 
 -- Messages table
 create table if not exists public.messages (
@@ -58,6 +62,7 @@ create table if not exists public.reports (
 );
 
 create index if not exists idx_profiles_username on public.profiles(lower(username));
+create index if not exists idx_profiles_email on public.profiles(lower(email));
 create index if not exists idx_messages_recipient_created on public.messages(recipient_id, created_at desc);
 create index if not exists idx_abuse_ip_time on public.message_abuse_metadata(client_ip_hash, created_at desc);
 
@@ -72,6 +77,11 @@ drop policy if exists "Profiles public read" on public.profiles;
 create policy "Profiles public read" 
 on public.profiles for select 
 using (is_banned = false);
+
+drop policy if exists "User can insert own profile" on public.profiles;
+create policy "User can insert own profile" 
+on public.profiles for insert 
+with check (auth.uid() = id);
 
 drop policy if exists "User can update own profile" on public.profiles;
 create policy "User can update own profile" 
@@ -98,6 +108,16 @@ drop policy if exists "Recipients can delete own messages" on public.messages;
 create policy "Recipients can delete own messages" 
 on public.messages for delete 
 using (auth.uid() = recipient_id);
+
+-- Direct guest message insert policy as fallback to RPC
+drop policy if exists "Guests can insert anonymous messages" on public.messages;
+create policy "Guests can insert anonymous messages" 
+on public.messages for insert 
+with check (
+    recipient_id is not null 
+    and char_length(content) >= 1 
+    and char_length(content) <= 1000
+);
 
 -- Message Abuse Metadata Policies
 drop policy if exists "Abuse metadata inaccessible to public/recipients" on public.message_abuse_metadata;
@@ -139,9 +159,10 @@ begin
 
     v_display_name := coalesce(new.raw_user_meta_data->>'display_name', new.raw_user_meta_data->>'name', v_clean_username);
 
-    insert into public.profiles (id, username, display_name, avatar_url)
-    values (new.id, v_clean_username, v_display_name, new.raw_user_meta_data->>'avatar_url')
+    insert into public.profiles (id, email, username, display_name, avatar_url)
+    values (new.id, new.email, v_clean_username, v_display_name, new.raw_user_meta_data->>'avatar_url')
     on conflict (id) do update set
+        email = coalesce(excluded.email, public.profiles.email),
         display_name = excluded.display_name,
         updated_at = now();
 
@@ -153,6 +174,31 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
     after insert on auth.users
     for each row execute function public.handle_new_user();
+
+-- Helper RPC: get_email_by_username
+create or replace function public.get_email_by_username(p_username text)
+returns text as $$
+declare
+    v_email text;
+begin
+    select email into v_email
+    from public.profiles
+    where lower(username) = lower(trim(p_username))
+    limit 1;
+
+    if v_email is null then
+        select u.email into v_email
+        from auth.users u
+        join public.profiles p on p.id = u.id
+        where lower(p.username) = lower(trim(p_username))
+        limit 1;
+    end if;
+
+    return v_email;
+end;
+$$ language plpgsql security definer set search_path = public, auth;
+
+grant execute on function public.get_email_by_username to anon, authenticated, service_role;
 
 -- Secure RPC function for guest letter delivery
 create or replace function public.submit_anonymous_message(

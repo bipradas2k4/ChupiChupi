@@ -160,9 +160,10 @@ export async function signUpWithEmail(
   const client = getSupabaseClient();
   const { isConfigured } = getSupabaseCredentials();
 
-  // 1. If Supabase is configured with real key, try Supabase Auth first
+  // 1. If Supabase is configured with real key, execute real Supabase Auth
   if (isConfigured && client) {
     try {
+      // Check if username is already taken in the database
       const { data: existingUser } = await client
         .from('profiles')
         .select('username')
@@ -187,7 +188,27 @@ export async function signUpWithEmail(
         }
       });
 
-      if (!error && data?.user) {
+      if (error) {
+        if (error.message.toLowerCase().includes('already registered')) {
+          return { success: false, error: 'এই ইমেইলটি দিয়ে ইতিমধ্যে একাউন্ট খোলা হয়েছে। অনুগ্রহ করে লগইন করুন।' };
+        }
+        if (error.message.toLowerCase().includes('password')) {
+          return { success: false, error: 'পাসওয়ার্ডটি খুব দুর্বল অথবা কমপক্ষে ৬ অক্ষরের হতে হবে।' };
+        }
+        return { success: false, error: `নিবন্ধন ত্রুটি: ${error.message}` };
+      }
+
+      if (data?.user) {
+        // In Supabase, if user already exists and email confirmations are enabled, 
+        // it returns user with empty identities list
+        if (data.user.identities && data.user.identities.length === 0) {
+          return { 
+            success: false, 
+            error: 'এই ইমেইলটি দিয়ে ইতিমধ্যে একাউন্ট খোলা হয়েছে। অনুগ্রহ করে লগইন করুন।' 
+          };
+        }
+
+        // Fetch or create profile in Supabase profiles table
         let profile: Profile | null = null;
         try {
           const { data: profData } = await client
@@ -197,12 +218,14 @@ export async function signUpWithEmail(
             .maybeSingle();
           profile = profData as Profile | null;
         } catch {
-          // Profile trigger will handle this
+          // Trigger might not have finished
         }
 
         if (!profile) {
-          profile = {
+          // Explicitly upsert profile into the database
+          const newProfilePayload = {
             id: data.user.id,
+            email: cleanEmail,
             username: cleanUsername,
             display_name: cleanName,
             avatar_url: null,
@@ -210,33 +233,49 @@ export async function signUpWithEmail(
             bio: 'আমার সাথে গোপন চিঠি আদান-প্রদান করুন',
             inbox_paused: false,
             is_banned: false,
-            role: 'user',
+            role: 'user' as const,
             envelope_theme: 'vintage_burgundy',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
           };
+
+          try {
+            const { data: insertedProf } = await client
+              .from('profiles')
+              .upsert(newProfilePayload)
+              .select('*')
+              .maybeSingle();
+            profile = insertedProf as Profile | null;
+          } catch {
+            // RLS fallback
+          }
+
+          if (!profile) {
+            profile = {
+              ...newProfilePayload,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          }
         }
 
         setActiveLocalSession(data.user, profile);
         saveLocalProfile(profile);
 
+        const hasActiveSession = Boolean(data.session);
         return {
           success: true,
           user: data.user,
           profile,
-          message: 'অভিনন্দন! আপনার চিঠি বাক্স সফলভাবে তৈরি হয়েছে।'
+          message: hasActiveSession 
+            ? 'অভিনন্দন! আপনার চিঠি বাক্স সফলভাবে তৈরি হয়েছে।' 
+            : 'আপনার অ্যাকাউন্ট তৈরি হয়েছে! আপনি সরাসরি আপনার চিঠির বাক্সে প্রবেশ করতে পারেন।'
         };
-      } else if (error) {
-        if (error.message.toLowerCase().includes('already registered')) {
-          return { success: false, error: 'এই ইমেইলটি দিয়ে ইতিমধ্যে একাউন্ট খোলা হয়েছে। অনুগ্রহ করে লগইন করুন।' };
-        }
       }
-    } catch {
-      // Fallback to local store
+    } catch (backendErr: any) {
+      console.warn('Supabase signup exception, falling back to local:', backendErr);
     }
   }
 
-  // 2. Resilient Persistent Local Signup (Instant 100% working signup without backend hurdles!)
+  // 2. Resilient Persistent Local Signup (Instant working backup)
   const localAccounts = getLocalAccounts();
   const existingUsername = localAccounts.find(a => a.username.toLowerCase() === cleanUsername);
   if (existingUsername) {
@@ -257,6 +296,7 @@ export async function signUpWithEmail(
   const newId = 'usr_' + Math.random().toString(36).substring(2, 10);
   const newProfile: Profile = {
     id: newId,
+    email: cleanEmail,
     username: cleanUsername,
     display_name: cleanName,
     avatar_url: null,
@@ -294,13 +334,13 @@ export async function signUpWithEmail(
 }
 
 /**
- * Sign In with Email & Password
- * Checks Supabase Auth first, then persistent accounts with instant login!
+ * Sign In with Email or Username & Password
+ * Seamlessly resolves usernames to emails and checks Supabase Auth first!
  */
-export async function signInWithEmail(email: string, pass: string): Promise<AuthResponse> {
-  const cleanEmail = email.trim();
+export async function signInWithEmail(emailOrUsername: string, pass: string): Promise<AuthResponse> {
+  const cleanInput = emailOrUsername.trim();
 
-  if (!cleanEmail || !pass) {
+  if (!cleanInput || !pass) {
     return { success: false, error: 'ইমেইল এবং পাসওয়ার্ড প্রদান করুন।' };
   }
 
@@ -310,8 +350,34 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
   // 1. Try Supabase Auth first if configured
   if (isConfigured && client) {
     try {
+      let resolvedEmail = cleanInput;
+
+      // If user typed a username without @, resolve their email from Supabase
+      if (!cleanInput.includes('@')) {
+        const cleanUser = cleanInput.toLowerCase().replace(/^@/, '');
+        try {
+          // Try RPC resolver
+          const { data: rpcEmail } = await client.rpc('get_email_by_username', { p_username: cleanUser });
+          if (rpcEmail) {
+            resolvedEmail = rpcEmail;
+          } else {
+            // Try profiles table lookup
+            const { data: prof } = await client
+              .from('profiles')
+              .select('email')
+              .ilike('username', cleanUser)
+              .maybeSingle();
+            if (prof?.email) {
+              resolvedEmail = prof.email;
+            }
+          }
+        } catch {
+          // ignore resolution error
+        }
+      }
+
       const { data, error } = await client.auth.signInWithPassword({
-        email: cleanEmail,
+        email: resolvedEmail,
         password: pass
       });
 
@@ -329,8 +395,9 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
         }
 
         if (!profile) {
-          profile = {
+          const fallbackProf: Profile = {
             id: data.user.id,
+            email: data.user.email,
             username: data.user.user_metadata?.username || 'user_' + data.user.id.substring(0, 6),
             display_name: data.user.user_metadata?.display_name || 'আমার চিঠি বাক্স',
             avatar_url: null,
@@ -343,6 +410,12 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
+          try {
+            await client.from('profiles').upsert(fallbackProf);
+          } catch {
+            // ignore
+          }
+          profile = fallbackProf;
         }
 
         setActiveLocalSession(data.user, profile);
@@ -353,6 +426,17 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
           user: data.user,
           profile
         };
+      } else if (error) {
+        const errMsg = error.message.toLowerCase();
+        if (errMsg.includes('invalid login credentials')) {
+          return { success: false, error: 'ইমেইল/ইউজারনেম অথবা পাসওয়ার্ডটি সঠিক নয়।' };
+        }
+        if (errMsg.includes('email not confirmed')) {
+          return { success: false, error: 'আপনার ইমেইলটি এখনও কনফার্ম করা হয়নি। অনুগ্রহ করে ইনবক্স চেক করুন।' };
+        }
+        if (errMsg.includes('rate limit')) {
+          return { success: false, error: 'অনেক বেশি চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।' };
+        }
       }
     } catch {
       // Fallback to checking local accounts
@@ -362,8 +446,8 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
   // 2. Check local registered accounts (match by email or username)
   const localAccounts = getLocalAccounts();
   const account = localAccounts.find(
-    a => a.email.toLowerCase() === cleanEmail.toLowerCase() || 
-         a.username.toLowerCase() === cleanEmail.toLowerCase()
+    a => a.email.toLowerCase() === cleanInput.toLowerCase() || 
+         a.username.toLowerCase() === cleanInput.toLowerCase().replace(/^@/, '')
   );
 
   if (account) {
@@ -382,7 +466,7 @@ export async function signInWithEmail(email: string, pass: string): Promise<Auth
 
   // 3. Fallback demo accounts if user entered 'anirban' or 'priya'
   const demoProfiles = getLocalProfiles();
-  const demoProf = demoProfiles[cleanEmail.toLowerCase()];
+  const demoProf = demoProfiles[cleanInput.toLowerCase()];
   if (demoProf) {
     const user = { id: demoProf.id, email: `${demoProf.username}@example.com` };
     setActiveLocalSession(user, demoProf);
