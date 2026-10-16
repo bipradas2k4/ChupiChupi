@@ -2,27 +2,46 @@
 <html lang="bn">
   <head>
     <meta charset="UTF-8" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='70' y='15' rx='10' fill='%23881337'/%3E%3Cpath d='M0 25 L50 62 L100 25' stroke='%23fef08a' stroke-width='4' fill='none'/%3E%3Ccircle cx='50' cy='62' r='12' fill='%23dc2626'/%3E%3Ctext x='50' y='66' font-size='11' text-anchor='middle' fill='%23fef3c7' font-family='serif' font-weight='bold'%3Eচুপি%3C/text%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>চুপিচুপি (ChupiChupi) — বেনামী চিঠি ও মনের কথা আদান-প্রদান</title>
     <meta name="description" content="চুপিচুপি হলো একটি সুন্দর বেনামী চিঠি পাঠানোর মাধ্যম। সাইন-আপ ছাড়াই প্রিয়জনকে পাঠান না-বলা কথা, মনের গোপন অনুভূতি ও চিঠি।" />
     
-    <!-- Open Graph / WhatsApp / Facebook / Social Share Preview -->
+    <!-- Open Graph / WhatsApp / Facebook / Telegram / Social Share Preview -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://chupichupi-app.vercel.app/" />
+    <meta property="og:site_name" content="চুপিচুপি (ChupiChupi)" />
+    <meta property="og:locale" content="bn_BD" />
     <meta property="og:title" content="চুপিচুপি (ChupiChupi) — আমাকে বেনামী চিঠি পাঠান 🤫" />
-    <meta property="og:description" content="আমাকে সম্পূর্ণ গোপনে ও বেনামে চিঠি পাঠান! কোনো নাম বা পরিচয় ছাড়া আপনার মনের না-বলা কথা লিখে পাঠান।" />
-    <meta property="og:image" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg" />
-    <meta property="og:image:secure_url" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg" />
+    <meta property="og:description" content="আমাকে সম্পূর্ণ গোপনে ও বেনামে চিঠি পাঠান! কোনো নাম বা পরিচয় প্রকাশ ছাড়াই আপনার মনের না-বলা কথা লিখে পাঠান।" />
+    
+    <!-- Primary Landscape Preview (1200x630, ~95KB < 300KB for WhatsApp) -->
+    <meta property="og:image" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg?v=2" />
+    <meta property="og:image:secure_url" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg?v=2" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="675" />
-    <meta property="og:site_name" content="চুপিচুপি (ChupiChupi)" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="চুপিচুপি (ChupiChupi) — বেনামী চিঠি পাঠানোর নিরাপদ প্ল্যাটফর্ম" />
+
+    <!-- Secondary Square Preview (600x600, ~63KB for WhatsApp Status thumbnail) -->
+    <meta property="og:image" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_square.jpg?v=2" />
+    <meta property="og:image:secure_url" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_square.jpg?v=2" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="600" />
+    <meta property="og:image:height" content="600" />
+
+    <!-- Old crawlers fallback -->
+    <link rel="image_src" href="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg?v=2" />
 
     <!-- Twitter Preview -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://chupichupi-app.vercel.app/" />
     <meta name="twitter:title" content="চুপিচুপি (ChupiChupi) — আমাকে বেনামী চিঠি পাঠান 🤫" />
-    <meta name="twitter:description" content="আমাকে সম্পূর্ণ গোপনে ও বেনামে চিঠি পাঠান! কোনো নাম বা পরিচয় ছাড়া আপনার মনের না-বলা কথা লিখে পাঠান।" />
-    <meta name="twitter:image" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg" />
+    <meta name="twitter:description" content="আমাকে সম্পূর্ণ গোপনে ও বেনামে চিঠি পাঠান! কোনো নাম বা পরিচয় প্রকাশ ছাড়াই আপনার মনের না-বলা কথা লিখে পাঠান।" />
+    <meta name="twitter:image" content="https://chupichupi-app.vercel.app/assets/chupichupi_logo_banner.jpg?v=2" />
+    <meta name="twitter:image:alt" content="চুপিচুপি অফিসিয়াল লোগো ও ব্যানার" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -35,12 +35,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [replySaving, setReplySaving] = useState(false);
   const [copiedReplyId, setCopiedReplyId] = useState<string | null>(null);
 
-  const handleDownloadReplyStory = (msg: Message) => {
+  const handleDownloadReplyStory = async (msg: Message) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
     canvas.height = 1350;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Preload official seal logo
+    const sealImg = new Image();
+    sealImg.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve) => {
+      sealImg.onload = () => resolve();
+      sealImg.onerror = () => resolve();
+      sealImg.src = '/assets/chupichupi_seal_logo.png';
+    });
 
     // 1. Background gradient
     const grad = ctx.createLinearGradient(0, 0, 1080, 1350);
@@ -59,14 +68,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ctx.arc(900, 1150, 320, 0, Math.PI * 2);
     ctx.fill();
 
-    // Top branding badge
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 36px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('চুপিচুপি • CHUPICHUPI', 540, 130);
-    ctx.fillStyle = '#fdf4ea';
-    ctx.font = '24px sans-serif';
-    ctx.fillText(`@${profile.username} এর চিঠি ও উত্তর`, 540, 175);
+    // Top branding badge with logo
+    if (sealImg.complete && sealImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(190, 18, 60, 0.5)';
+      ctx.shadowBlur = 15;
+      ctx.drawImage(sealImg, 540 - 45, 30, 90, 90);
+      ctx.restore();
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 34px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('চুপিচুপি • CHUPICHUPI', 540, 155);
+      ctx.fillStyle = '#fdf4ea';
+      ctx.font = '22px sans-serif';
+      ctx.fillText(`@${profile.username} এর চিঠি ও উত্তর`, 540, 190);
+    } else {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 36px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('চুপিচুপি • CHUPICHUPI', 540, 130);
+      ctx.fillStyle = '#fdf4ea';
+      ctx.font = '24px sans-serif';
+      ctx.fillText(`@${profile.username} এর চিঠি ও উত্তর`, 540, 175);
+    }
 
     // 2. Anonymous Letter White Card
     const cardX = 90;
@@ -159,10 +184,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     ctx.fillText(rLine, cardX + 50, rY);
 
     // 4. Bottom footer prompt
+    const displayHost = window.location.host || 'chupichupi-app.vercel.app';
     ctx.fillStyle = '#fde047';
     ctx.font = 'bold 28px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`তুমিও বেনামে চিঠি পাঠাও 👉 chupichupi.me/u/${profile.username}`, 540, 1230);
+    ctx.fillText(`তুমিও বেনামে চিঠি পাঠাও 👉 ${displayHost}/u/${profile.username}`, 540, 1230);
 
     const link = document.createElement('a');
     link.download = `chupichupi-reply-${profile.username}.png`;
@@ -171,7 +197,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleCopyReplyText = async (msg: Message) => {
-    const shareText = `💌 চুপিচুপি গোপন চিঠি:\n"${msg.content}"\n\n🗣️ ${profile.display_name} এর উত্তর:\n"${msg.reply_text || '❤️'}"\n\n👉 আমাকেও বেনামে চিঠি পাঠাতে ক্লিক করো:\n${window.location.origin}/?u=${profile.username}`;
+    const shareText = `💌 চুপিচুপি গোপন চিঠি:\n"${msg.content}"\n\n🗣️ ${profile.display_name} এর উত্তর:\n"${msg.reply_text || '❤️'}"\n\n👉 আমাকেও বেনামে চিঠি পাঠাতে ক্লিক করো:\n${window.location.origin}/u/${profile.username}`;
     try {
       await navigator.clipboard.writeText(shareText);
       setCopiedReplyId(msg.id);

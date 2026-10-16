@@ -81,12 +81,16 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
       setProfile(null);
     } else {
       setProfile(res.profile);
+      document.title = `${res.profile.display_name} (@${res.profile.username}) — চুপিচুপি চিঠি বক্স 🤫`;
     }
     setLoadingProfile(false);
   };
 
   useEffect(() => {
     loadRecipient();
+    return () => {
+      document.title = 'চুপিচুপি (ChupiChupi) — বেনামী চিঠি ও মনের কথা আদান-প্রদান';
+    };
   }, [username]);
 
   const handleSendLetter = async (e: React.FormEvent) => {

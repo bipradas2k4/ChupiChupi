@@ -44,7 +44,7 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
   };
 
   // Generate & Download PNG Image Card via HTML5 Canvas
-  const handleDownloadCard = () => {
+  const handleDownloadCard = async () => {
     setDownloading(true);
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
@@ -55,6 +55,15 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
       setDownloading(false);
       return;
     }
+
+    // Preload official seal logo
+    const sealImg = new Image();
+    sealImg.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve) => {
+      sealImg.onload = () => resolve();
+      sealImg.onerror = () => resolve();
+      sealImg.src = '/assets/chupichupi_seal_logo.png';
+    });
 
     // 1. Draw Gradient Background
     const gradient = ctx.createLinearGradient(0, 0, 1080, 1350);
@@ -108,21 +117,30 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
     ctx.textAlign = 'left';
     ctx.fillText(`@${profile.username}`, cardX + 160, cardY + 110);
 
-    // Decorative seal stamp top right of card
-    ctx.save();
-    ctx.strokeStyle = '#be123c';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(cardX + cardW - 100, cardY + 100, 50, 0, Math.PI * 2);
-    ctx.stroke();
+    // Official Royal Wax Seal Stamp top right of card
+    if (sealImg.complete && sealImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(190, 18, 60, 0.45)';
+      ctx.shadowBlur = 20;
+      ctx.drawImage(sealImg, cardX + cardW - 145, cardY + 50, 110, 110);
+      ctx.restore();
+    } else {
+      // Fallback seal stamp if image fails to load
+      ctx.save();
+      ctx.strokeStyle = '#be123c';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cardX + cardW - 100, cardY + 105, 50, 0, Math.PI * 2);
+      ctx.stroke();
 
-    ctx.fillStyle = '#be123c';
-    ctx.font = 'bold 24px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('চুপিচুপি', cardX + cardW - 100, cardY + 95);
-    ctx.font = '18px sans-serif';
-    ctx.fillText('গোপন বার্তা', cardX + cardW - 100, cardY + 120);
-    ctx.restore();
+      ctx.fillStyle = '#be123c';
+      ctx.font = 'bold 24px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('চুপিচুপি', cardX + cardW - 100, cardY + 100);
+      ctx.font = '18px sans-serif';
+      ctx.fillText('গোপন বার্তা', cardX + cardW - 100, cardY + 125);
+      ctx.restore();
+    }
 
     // 4. Main Question / Prompt
     ctx.fillStyle = '#0f172a';
@@ -157,15 +175,19 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
     ctx.roundRect(cardX + 80, cardY + cardH - 160, cardW - 160, 90, 24);
     ctx.fill();
 
+    const displayHost = window.location.host || 'chupichupi-app.vercel.app';
     ctx.fillStyle = '#18181b';
     ctx.font = 'bold 34px monospace';
-    ctx.fillText(`chupichupi.app/u/${profile.username}`, cardX + cardW / 2, cardY + cardH - 105);
+    ctx.fillText(`${displayHost}/u/${profile.username}`, cardX + cardW / 2, cardY + cardH - 105);
 
-    // Bottom Watermark
+    // Bottom Watermark & Branding
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('ইনস্টাগ্রাম স্টোরি বা হোয়াটসঅ্যাপে শেয়ার করুন!', 540, 1150);
+    ctx.fillText('চুপিচুপি (ChupiChupi) • ইনস্টাগ্রাম বা হোয়াটসঅ্যাপ স্টোরিতে পোস্ট করুন!', 540, 1140);
+    ctx.font = '28px sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText(`🔗 লিঙ্কে ট্যাপ করে আমাকে চিঠি পাঠাও: ${displayHost}/u/${profile.username}`, 540, 1195);
 
     // Trigger download
     const link = document.createElement('a');
@@ -248,25 +270,33 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
           textAlign: 'center',
           position: 'relative'
         }}>
-          {/* Bengali Stamp Accent */}
+          {/* Official Royal Wax Seal Stamp */}
           <div style={{
             position: 'absolute',
             top: '12px',
             right: '12px',
-            border: '1.5px dashed #be123c',
-            borderRadius: '50%',
-            width: '44px',
-            height: '44px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#be123c',
-            fontFamily: 'var(--font-serif)',
-            fontSize: '0.65rem',
-            fontWeight: 700,
-            transform: 'rotate(-12deg)'
+            cursor: 'default',
+            filter: 'drop-shadow(0 4px 10px rgba(190, 18, 60, 0.4))'
           }}>
-            চুপিচুপি
+            <img 
+              src="/assets/chupichupi_seal_logo.png" 
+              alt="চুপিচুপি লোগো"
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                border: '1.5px solid rgba(254, 240, 138, 0.6)',
+                transform: 'rotate(-6deg)',
+                transition: 'transform 0.2s ease',
+                display: 'block'
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1) rotate(0deg)')}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1) rotate(-6deg)')}
+              title="চুপিচুপি অফিসিয়াল সিল"
+            />
           </div>
 
           {/* User Avatar / Header */}
@@ -372,7 +402,7 @@ export const LetterBoxCard: React.FC<LetterBoxCardProps> = ({ profile }) => {
             gap: '0.4rem',
             border: '1px solid #e4e4e7'
           }}>
-            <span>chupichupi.app/u/{profile.username}</span>
+            <span>{(window.location.host || 'chupichupi-app.vercel.app')}/u/{profile.username}</span>
           </div>
         </div>
 
