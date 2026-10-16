@@ -20,8 +20,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentProfile,
   onSignOut,
   onOpenQuickSend,
-  isSupabaseConfigured = false,
-  onOpenConfigModal,
 }) => {
   return (
     <header style={{
