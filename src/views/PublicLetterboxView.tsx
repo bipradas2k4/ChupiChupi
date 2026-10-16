@@ -219,43 +219,55 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
     );
   }
 
-  const selectedCategoryMeta = CATEGORIES[category];
-
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', paddingTop: '1rem' }} id="public-letterbox-container">
-      {/* Back button */}
-      <div style={{ marginBottom: '1.25rem' }}>
+    <div style={{ maxWidth: '680px', margin: '0 auto', paddingTop: '0.75rem' }} id="public-letterbox-container">
+      {/* Top Navigation & Status Bar */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '0.85rem'
+      }}>
         <button 
           onClick={onBackToHome}
           id="back-to-home-btn"
           className="btn btn-ghost"
-          style={{ padding: '0.45rem 0.85rem', fontSize: '0.88rem' }}
+          style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
         >
-          <ArrowLeft size={15} />
+          <ArrowLeft size={14} />
           <span>নীড়ে ফিরুন</span>
         </button>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          fontSize: '0.78rem',
+          color: '#4ade80',
+          background: 'rgba(74, 222, 128, 0.1)',
+          padding: '0.3rem 0.65rem',
+          borderRadius: '20px',
+          border: '1px solid rgba(74, 222, 128, 0.25)'
+        }}>
+          <Shield size={12} />
+          <span>১০০% গোপন ও বেনামী</span>
+        </div>
       </div>
 
-      {/* Recipient Profile Header Card */}
+      {/* 1. Recipient Profile & Prompt Banner (Compact, Elegant, and Engaging) */}
       <div className="glass-card" style={{
-        padding: '1.75rem',
-        marginBottom: '1.5rem',
-        border: '1.5px solid rgba(245, 158, 11, 0.3)',
+        padding: '1rem 1.25rem',
+        marginBottom: '1rem',
+        border: '1.5px solid rgba(245, 158, 11, 0.35)',
+        background: 'linear-gradient(135deg, rgba(30, 12, 24, 0.95) 0%, rgba(18, 9, 20, 0.95) 100%)',
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {/* Postal Stamp Badge */}
-        <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem' }}>
-          <div className="postage-stamp">
-            ডাকঘর সীল
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           {/* Avatar / Monogram */}
           <div style={{
-            width: '58px',
-            height: '58px',
+            width: '46px',
+            height: '46px',
             borderRadius: '50%',
             background: 'linear-gradient(135deg, #be123c 0%, #701a2d 100%)',
             border: '2px solid #fbbf24',
@@ -264,134 +276,64 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
             justifyContent: 'center',
             color: '#fff',
             fontFamily: 'var(--font-serif)',
-            fontSize: '1.5rem',
+            fontSize: '1.25rem',
             fontWeight: 700,
-            boxShadow: '0 4px 15px rgba(190, 18, 60, 0.4)'
+            flexShrink: 0,
+            boxShadow: '0 3px 12px rgba(190, 18, 60, 0.4)'
           }}>
             {profile.display_name.charAt(0)}
           </div>
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.45rem', color: '#fdf4ea', lineHeight: 1.2 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <h2 style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: '1.2rem',
+                color: '#fdf4ea',
+                lineHeight: 1.2,
+                margin: 0
+              }}>
                 {profile.display_name}
               </h2>
-              <span style={{ fontSize: '0.85rem', color: '#fbbf24', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.82rem', color: '#fbbf24', fontWeight: 600 }}>
                 @{profile.username}
               </span>
             </div>
 
-            {profile.bio && (
-              <p style={{ fontSize: '0.88rem', color: '#a8998b', marginTop: '0.25rem' }}>
-                {profile.bio}
-              </p>
-            )}
+            {/* Prompt */}
+            <div style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: '1.05rem',
+              color: '#fef08a',
+              marginTop: '0.2rem',
+              fontStyle: 'italic',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              "{profile.prompt || 'আমাকে তোমার গোপন মনের কথা বলো... 🤫'}"
+            </div>
           </div>
-        </div>
 
-        {/* Personalized Letterbox Prompt */}
-        <div style={{
-          marginTop: '1.25rem',
-          padding: '0.9rem 1.25rem',
-          background: 'rgba(15, 8, 20, 0.8)',
-          borderRadius: '12px',
-          borderLeft: '4px solid #f59e0b'
-        }}>
-          <div style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            প্রাপকের আহ্বান:
-          </div>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', color: '#fdf4ea', marginTop: '0.2rem' }}>
-            "{profile.prompt || 'আমাকে তোমার গোপন মনের কথা বলো... 🤫'}"
-          </div>
+          {/* Mini Seal Logo */}
+          <img 
+            src="/assets/chupichupi_seal_logo.png" 
+            alt="সিল" 
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              flexShrink: 0,
+              filter: 'drop-shadow(0 2px 6px rgba(190, 18, 60, 0.4))'
+            }}
+          />
         </div>
       </div>
 
-      {/* Main Letter Composition Desk */}
+      {/* 2. Main Letter Composition Desk (Visible IMMEDIATELY above without scrolling!) */}
       <form onSubmit={handleSendLetter}>
-        {/* Category Selector Chips */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <label style={{ display: 'block', fontSize: '0.88rem', color: '#c4b5a5', marginBottom: '0.6rem', fontWeight: 500 }}>
-            চিঠির বিষয় বা অনুভূতি নির্বাচন করুন:
-          </label>
-          <div style={{
-            display: 'flex',
-            gap: '0.5rem',
-            flexWrap: 'wrap'
-          }} id="category-selector-group">
-            {(Object.keys(CATEGORIES) as MessageCategory[]).map((catKey) => {
-              const cat = CATEGORIES[catKey];
-              const isSelected = category === catKey;
-              return (
-                <button
-                  type="button"
-                  key={catKey}
-                  onClick={() => setCategory(catKey)}
-                  id={`cat-btn-${catKey}`}
-                  className="badge"
-                  style={{
-                    padding: '0.5rem 0.9rem',
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    background: isSelected ? cat.badgeBg : 'rgba(255, 255, 255, 0.05)',
-                    border: `1.5px solid ${isSelected ? cat.badgeColor : 'rgba(255, 255, 255, 0.1)'}`,
-                    color: isSelected ? '#ffffff' : '#c4b5a5',
-                    fontWeight: isSelected ? 600 : 400,
-                    transform: isSelected ? 'scale(1.04)' : 'scale(1)',
-                    boxShadow: isSelected ? `0 0 12px ${cat.badgeColor}40` : 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.labelBn}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#a8998b', marginTop: '0.4rem', fontStyle: 'italic', marginBottom: '0.75rem' }}>
-            {selectedCategoryMeta.descriptionBn}
-          </div>
-
-          {/* Prompt Starters */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '12px',
-            padding: '0.75rem 1rem',
-            border: '1px dashed var(--border-subtle)',
-            marginBottom: '1rem'
-          }}>
-            <div style={{ fontSize: '0.78rem', color: '#fbbf24', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
-              <Sparkles size={13} />
-              <span>অনুপ্রেরণামূলক শুরুয়াত (ট্যাপ করে চিঠিতে যোগ করুন):</span>
-            </div>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {(PROMPT_STARTERS[category] || []).map((starter, i) => (
-                <button
-                  type="button"
-                  key={i}
-                  onClick={() => {
-                    setContent((prev) => prev ? `${prev} ${starter}` : `${starter} `);
-                    if (submitError) setSubmitError(null);
-                  }}
-                  className="badge"
-                  style={{
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    color: '#fdf4ea',
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
-                    padding: '0.3rem 0.65rem'
-                  }}
-                >
-                  + {starter}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
         {/* Parchment Letter Paper Desk */}
         <div className="parchment-sheet" style={{
-          marginBottom: '1.25rem',
+          marginBottom: '0.85rem',
           position: 'relative'
         }} id="letter-writing-pad">
           {/* Top greeting on parchment */}
@@ -399,8 +341,8 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '0.75rem',
-            paddingBottom: '0.4rem',
+            marginBottom: '0.5rem',
+            paddingBottom: '0.35rem',
             borderBottom: '1px solid rgba(180, 58, 43, 0.25)',
             fontSize: '0.88rem',
             fontFamily: 'var(--font-serif)',
@@ -443,15 +385,16 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
               setContent(e.target.value);
               if (submitError) setSubmitError(null);
             }}
-            placeholder="এখানে তোমার না-বলা মনের কথাটি লিখে ফেলো... কোনো সংকোচ ছাড়াই। প্রাপক জানবে না কে পাঠিয়েছে।"
+            placeholder="এখানে তোমার না-বলা মনের কথাটি লিখে ফেলো... সম্পূর্ণ নির্ভয়ে ও বেনামে। প্রাপক কখনোই তোমার নাম বা পরিচয় জানতে পারবে না।"
+            autoFocus
             style={{
               width: '100%',
-              minHeight: '220px',
+              minHeight: '190px',
               background: 'transparent',
               border: 'none',
               outline: 'none',
               fontFamily: 'var(--font-serif)',
-              fontSize: '1.1rem',
+              fontSize: '1.12rem',
               color: '#1a0e0a',
               lineHeight: '32px',
               resize: 'vertical'
@@ -465,13 +408,13 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: '0.75rem',
-            paddingTop: '0.5rem',
+            marginTop: '0.5rem',
+            paddingTop: '0.4rem',
             borderTop: '1px dashed rgba(180, 58, 43, 0.25)',
             fontSize: '0.82rem',
             color: '#78350f'
           }}>
-            <span style={{ fontStyle: 'italic' }}>— এক গোপন শুভাকাঙ্ক্ষী</span>
+            <span style={{ fontStyle: 'italic' }}>— এক গোপন শুভাকাঙ্ক্ষী 🤫</span>
             <span id="char-counter" style={{
               fontWeight: 600,
               color: content.length > 900 ? '#dc2626' : '#78350f'
@@ -481,47 +424,106 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
           </div>
         </div>
 
-        {/* Privacy Reassurance Banner */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '0.75rem',
-          padding: '0.9rem 1.1rem',
-          borderRadius: '12px',
-          background: 'rgba(15, 8, 20, 0.65)',
-          border: '1px solid var(--border-subtle)',
-          marginBottom: '1.5rem',
-          fontSize: '0.85rem',
-          color: '#c4b5a5'
-        }}>
-          <Shield size={18} color="#4ade80" style={{ flexShrink: 0, marginTop: '2px' }} />
-          <div>
-            <strong style={{ color: '#fdf4ea' }}>সম্পূর্ণ বেনামী নিশ্চয়তা:</strong>{' '}
-            প্রাপক আপনার আইপি, ইমেইল, অথবা পরিচয় কোনোভাবেই দেখতে পাবেন না। চিঠি পাঠাতে কোনো অ্যাকাউন্ট বা লগইন করার প্রয়োজন নেই।
+        {/* 3. Compact Horizontal Category Mood Selector & Quick Starters */}
+        <div style={{ marginBottom: '0.85rem' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            overflowX: 'auto',
+            paddingBottom: '0.3rem',
+            scrollbarWidth: 'none'
+          }} id="category-selector-group">
+            <span style={{ fontSize: '0.76rem', color: '#a8998b', flexShrink: 0, fontWeight: 500 }}>মেজাজ:</span>
+            {(Object.keys(CATEGORIES) as MessageCategory[]).map((catKey) => {
+              const cat = CATEGORIES[catKey];
+              const isSelected = category === catKey;
+              return (
+                <button
+                  type="button"
+                  key={catKey}
+                  onClick={() => setCategory(catKey)}
+                  id={`cat-btn-${catKey}`}
+                  className="badge"
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    background: isSelected ? cat.badgeBg : 'rgba(255, 255, 255, 0.05)',
+                    border: `1.5px solid ${isSelected ? cat.badgeColor : 'rgba(255, 255, 255, 0.1)'}`,
+                    color: isSelected ? '#ffffff' : '#c4b5a5',
+                    fontWeight: isSelected ? 600 : 400,
+                    boxShadow: isSelected ? `0 0 10px ${cat.badgeColor}40` : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.labelBn}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Prompt Starters (1-tap suggestions) */}
+          <div style={{
+            display: 'flex',
+            gap: '0.35rem',
+            overflowX: 'auto',
+            paddingTop: '0.25rem',
+            paddingBottom: '0.25rem',
+            scrollbarWidth: 'none'
+          }}>
+            <span style={{ fontSize: '0.74rem', color: '#fbbf24', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <Sparkles size={11} /> শুরু করুন:
+            </span>
+            {(PROMPT_STARTERS[category] || []).map((starter, i) => (
+              <button
+                type="button"
+                key={i}
+                onClick={() => {
+                  setContent((prev) => prev ? `${prev} ${starter}` : `${starter} `);
+                  if (submitError) setSubmitError(null);
+                }}
+                className="badge"
+                style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px dashed rgba(245, 158, 11, 0.25)',
+                  color: '#fdf4ea',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  padding: '0.25rem 0.55rem',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                + {starter}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Error Message */}
         {submitError && (
           <div style={{
-            padding: '0.85rem 1.1rem',
+            padding: '0.75rem 1rem',
             borderRadius: '12px',
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             color: '#fca5a5',
-            fontSize: '0.9rem',
+            fontSize: '0.88rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            marginBottom: '1.25rem'
+            marginBottom: '0.85rem'
           }} id="submission-error-alert">
-            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
             <span>{submitError}</span>
           </div>
         )}
 
-        {/* Primary Action Button - "চিঠি পাঠাও" */}
-        <div style={{ textAlign: 'center' }}>
+        {/* 4. Primary Action Button - "চিঠি পাঠাও" (High visibility right under textarea) */}
+        <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <button
             type="submit"
             id="send-letter-submit-btn"
@@ -529,16 +531,21 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
             className="btn btn-primary"
             style={{
               width: '100%',
-              padding: '0.95rem 1.5rem',
-              fontSize: '1.15rem',
+              padding: '0.85rem 1.5rem',
+              fontSize: '1.1rem',
               borderRadius: '14px',
               opacity: isSubmitting ? 0.7 : 1,
-              cursor: isSubmitting ? 'not-allowed' : 'pointer'
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              boxShadow: '0 8px 25px rgba(225, 29, 72, 0.35)'
             }}
           >
             {isSubmitting ? (
               <>
-                <span className="wax-seal" style={{ width: '24px', height: '24px', fontSize: '0.6rem' }}>...</span>
+                <span className="wax-seal" style={{ width: '22px', height: '22px', fontSize: '0.55rem' }}>...</span>
                 <span>চিঠি পাঠানো হচ্ছে...</span>
               </>
             ) : (
@@ -548,6 +555,25 @@ export const PublicLetterboxView: React.FC<PublicLetterboxViewProps> = ({
               </>
             )}
           </button>
+        </div>
+
+        {/* 5. Privacy Reassurance Banner at the bottom */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          padding: '0.65rem 1rem',
+          borderRadius: '10px',
+          background: 'rgba(15, 8, 20, 0.5)',
+          border: '1px solid var(--border-subtle)',
+          fontSize: '0.8rem',
+          color: '#a8998b',
+          textAlign: 'left'
+        }}>
+          <Shield size={16} color="#4ade80" style={{ flexShrink: 0 }} />
+          <div>
+            <strong style={{ color: '#fdf4ea' }}>১০০% নিরাপদ ও গোপনীয়:</strong> প্রাপক আপনার কোনো পরিচয় (আইপি বা ইমেইল) দেখতে পাবে না। সাইন-আপ ছাড়াই চিঠি পাঠানো যায়।
+          </div>
         </div>
       </form>
     </div>
