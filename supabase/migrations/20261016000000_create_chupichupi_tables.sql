@@ -179,18 +179,21 @@ create trigger on_auth_user_created
 create or replace function public.get_email_by_username(p_username text)
 returns text as $$
 declare
+    v_clean_username text;
     v_email text;
 begin
+    v_clean_username := lower(ltrim(trim(p_username), '@'));
+
     select email into v_email
     from public.profiles
-    where lower(username) = lower(trim(p_username))
+    where lower(username) = v_clean_username
     limit 1;
 
     if v_email is null then
         select u.email into v_email
         from auth.users u
         join public.profiles p on p.id = u.id
-        where lower(p.username) = lower(trim(p_username))
+        where lower(p.username) = v_clean_username
         limit 1;
     end if;
 
@@ -210,12 +213,15 @@ create or replace function public.submit_anonymous_message(
 )
 returns jsonb as $$
 declare
+    v_clean_username text;
     v_recipient public.profiles%rowtype;
     v_new_message_id uuid;
     v_recent_count int;
     v_clean_content text;
 begin
     v_clean_content := trim(p_content);
+    v_clean_username := lower(ltrim(trim(p_recipient_username), '@'));
+
     if v_clean_content is null or length(v_clean_content) < 1 then
         return jsonb_build_object('success', false, 'error', 'চিঠি ফাঁকা হতে পারে না (Message cannot be empty).');
     end if;
@@ -230,7 +236,7 @@ begin
 
     select * into v_recipient
     from public.profiles
-    where lower(username) = lower(trim(p_recipient_username))
+    where lower(username) = v_clean_username
       and is_banned = false;
 
     if not found then
@@ -269,3 +275,240 @@ end;
 $$ language plpgsql security definer set search_path = public;
 
 grant execute on function public.submit_anonymous_message to anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
+-- Secure RPC: fetch_inbox_messages
+-- ----------------------------------------------------------------------------
+create or replace function public.fetch_inbox_messages(p_recipient_id uuid)
+returns setof public.messages as $$
+begin
+    return query
+    select * from public.messages
+    where recipient_id = p_recipient_id
+    order by created_at desc;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+grant execute on function public.fetch_inbox_messages to anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
+-- Secure RPC: register_public_profile (Fallback for custom SMTP bypass)
+-- ----------------------------------------------------------------------------
+create or replace function public.register_public_profile(
+    p_username text,
+    p_display_name text,
+    p_email text default null
+)
+returns jsonb as $$
+declare
+    v_clean_username text;
+    v_new_id uuid;
+    v_profile public.profiles%rowtype;
+begin
+    v_clean_username := lower(ltrim(trim(p_username), '@'));
+    if length(v_clean_username) < 3 then
+        return jsonb_build_object('success', false, 'error', 'ইউজারনেম কমপক্ষে ৩ অক্ষরের হতে হবে।');
+    end if;
+
+    if exists (select 1 from public.profiles where lower(username) = v_clean_username) then
+        return jsonb_build_object('success', false, 'error', 'এই ইউজারনেমটি ইতিমধ্যে নেওয়া হয়েছে।');
+    end if;
+
+    v_new_id := gen_random_uuid();
+
+    insert into public.profiles (id, username, display_name, email)
+    values (v_new_id, v_clean_username, trim(p_display_name), trim(p_email))
+    returning * into v_profile;
+
+    return jsonb_build_object(
+        'success', true,
+        'profile', row_to_json(v_profile)
+    );
+end;
+$$ language plpgsql security definer set search_path = public;
+
+grant execute on function public.register_public_profile to anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
+-- Secure RPC: fetch_inbox_messages_v2 (Inbox retrieval by UUID or username)
+-- ----------------------------------------------------------------------------
+create or replace function public.fetch_inbox_messages_v2(
+    p_recipient_id text,
+    p_username text default null
+)
+returns setof public.messages as $$
+declare
+    v_uid uuid;
+    v_clean_username text := lower(ltrim(trim(coalesce(p_username, '')), '@'));
+    v_profile_id uuid;
+begin
+    begin
+        if p_recipient_id is not null and p_recipient_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+            v_uid := p_recipient_id::uuid;
+        else
+            v_uid := null;
+        end if;
+    exception when others then
+        v_uid := null;
+    end;
+
+    if v_clean_username <> '' then
+        select id into v_profile_id
+        from public.profiles
+        where lower(username) = v_clean_username
+        limit 1;
+    end if;
+
+    return query
+    select * from public.messages
+    where (v_uid is not null and recipient_id = v_uid)
+       or (v_profile_id is not null and recipient_id = v_profile_id)
+    order by created_at desc;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+grant execute on function public.fetch_inbox_messages_v2 to anon, authenticated, service_role;
+
+-- ----------------------------------------------------------------------------
+-- Secure RPC: register_chupichupi_user (Instant pre-confirmed registration)
+-- ----------------------------------------------------------------------------
+create or replace function public.register_chupichupi_user(
+    p_email text,
+    p_password text,
+    p_username text,
+    p_display_name text
+)
+returns jsonb as $$
+declare
+    v_clean_email text := lower(trim(p_email));
+    v_clean_username text := lower(regexp_replace(trim(p_username), '[^a-zA-Z0-9_]', '', 'g'));
+    v_clean_display_name text := trim(p_display_name);
+    v_new_user_id uuid := gen_random_uuid();
+    v_existing_user_id uuid;
+    v_profile public.profiles%rowtype;
+begin
+    if length(v_clean_username) < 3 or length(v_clean_username) > 30 then
+        return jsonb_build_object('success', false, 'error', 'ইউজারনেম ৩ থেকে ৩০ অক্ষরের হতে হবে।');
+    end if;
+
+    if v_clean_email is null or position('@' in v_clean_email) = 0 then
+        return jsonb_build_object('success', false, 'error', 'সঠিক ইমেইল ঠিকানা প্রদান করুন।');
+    end if;
+
+    if length(p_password) < 6 then
+        return jsonb_build_object('success', false, 'error', 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
+    end if;
+
+    select id into v_existing_user_id
+    from public.profiles
+    where lower(username) = v_clean_username
+    limit 1;
+
+    if v_existing_user_id is not null then
+        if not exists (select 1 from auth.users where id = v_existing_user_id and lower(email) = v_clean_email) then
+            return jsonb_build_object('success', false, 'error', 'এই ইউজারনেমটি (@' || v_clean_username || ') ইতিমধ্যে নেওয়া হয়েছে। অন্য একটি নির্বাচন করুন।');
+        end if;
+    end if;
+
+    select id into v_existing_user_id
+    from auth.users
+    where lower(email) = v_clean_email
+    limit 1;
+
+    if v_existing_user_id is not null then
+        update auth.users
+        set 
+            encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
+            email_confirmed_at = coalesce(email_confirmed_at, now()),
+            raw_user_meta_data = jsonb_build_object('username', v_clean_username, 'display_name', v_clean_display_name),
+            confirmation_token = '',
+            recovery_token = '',
+            updated_at = now()
+        where id = v_existing_user_id;
+
+        insert into public.profiles (
+            id, email, username, display_name, avatar_url, prompt, bio, inbox_paused, is_banned, role, envelope_theme, created_at, updated_at
+        ) values (
+            v_existing_user_id, v_clean_email, v_clean_username, v_clean_display_name, null,
+            'আমাকে তোমার গোপন মনের কথা বলো... 🤫', 'আমার সাথে গোপন চিঠি আদান-প্রদান করুন', false, false, 'user', 'vintage_burgundy', now(), now()
+        )
+        on conflict (id) do update set
+            email = excluded.email,
+            username = excluded.username,
+            display_name = excluded.display_name,
+            updated_at = now()
+        returning * into v_profile;
+
+        return jsonb_build_object(
+            'success', true,
+            'user_id', v_existing_user_id,
+            'email', v_clean_email,
+            'username', v_clean_username,
+            'profile', row_to_json(v_profile),
+            'message', 'আপনার অ্যাকাউন্ট আপডেট করা হয়েছে! এখন লগইন করুন।'
+        );
+    end if;
+
+    insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, confirmation_token, recovery_token,
+        email_change_token_new, email_change_token_current, email_change, phone_change,
+        phone_change_token, reauthentication_token, created_at, updated_at
+    ) values (
+        '00000000-0000-0000-0000-000000000000', v_new_user_id, 'authenticated', 'authenticated',
+        v_clean_email, extensions.crypt(p_password, extensions.gen_salt('bf')), now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('username', v_clean_username, 'display_name', v_clean_display_name),
+        '', '', '', '', '', '', '', '', now(), now()
+    );
+
+    insert into auth.identities (
+        id, provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at
+    ) values (
+        gen_random_uuid(), v_new_user_id::text, v_new_user_id,
+        jsonb_build_object('sub', v_new_user_id::text, 'email', v_clean_email),
+        'email', now(), now(), now()
+    );
+
+    insert into public.profiles (
+        id, email, username, display_name, avatar_url, prompt, bio, inbox_paused, is_banned, role, envelope_theme, created_at, updated_at
+    ) values (
+        v_new_user_id, v_clean_email, v_clean_username, v_clean_display_name, null,
+        'আমাকে তোমার গোপন মনের কথা বলো... 🤫', 'আমার সাথে গোপন চিঠি আদান-প্রদান করুন', false, false, 'user', 'vintage_burgundy', now(), now()
+    )
+    on conflict (id) do update set
+        email = excluded.email,
+        username = excluded.username,
+        display_name = excluded.display_name,
+        updated_at = now()
+    returning * into v_profile;
+
+    return jsonb_build_object(
+        'success', true,
+        'user_id', v_new_user_id,
+        'email', v_clean_email,
+        'username', v_clean_username,
+        'profile', row_to_json(v_profile)
+    );
+exception
+    when others then
+        return jsonb_build_object('success', false, 'error', SQLERRM);
+end;
+$$ language plpgsql security definer set search_path = public, auth, extensions;
+
+grant execute on function public.register_chupichupi_user to anon, authenticated, service_role;
+
+-- Enable Realtime publication for messages table
+alter table public.messages replica identity full;
+
+do $$
+begin
+    if not exists (
+        select 1 from pg_publication_tables 
+        where pubname = 'supabase_realtime' 
+          and schemaname = 'public' 
+          and tablename = 'messages'
+    ) then
+        alter publication supabase_realtime add table public.messages;
+    end if;
+end $$;

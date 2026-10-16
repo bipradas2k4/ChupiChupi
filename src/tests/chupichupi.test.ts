@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sendAnonymousLetter, getPublicProfile, getInboxMessages } from '../lib/letterApi';
-import { USERNAME_REGEX, signUpWithEmail, signInWithEmail, signUpOrSignInWithGoogleAccount } from '../lib/auth';
+import { USERNAME_REGEX, signUpWithEmail, signInWithEmail, signUpOrSignInWithGoogleAccount, resendVerificationEmail } from '../lib/auth';
 import { CATEGORIES } from '../types/database';
 import type { MessageCategory } from '../types/database';
 
@@ -33,7 +33,8 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
       expect(result.delivered_at).toBeDefined();
 
       // Verify recipient receives it in their inbox
-      const inbox = await getInboxMessages('demo-anirban-id');
+      const prof = await getPublicProfile('anirban');
+      const inbox = await getInboxMessages(prof.profile!.id);
       const found = inbox.messages.find(m => m.id === result.message_id);
       expect(found).toBeDefined();
       expect(found?.content).toBe(payload.content);
@@ -206,7 +207,7 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
         content: 'হ্যালো, কেউ আছেন?',
       });
       expect(res.success).toBe(false);
-      expect(res.error).toContain('চিঠি বাক্স পাওয়া যায়নি');
+      expect(res.error).toMatch(/চিঠি বাক্স পাওয়া যায়নি|প্রাপক খুঁজে পাওয়া যায়নি/);
     });
 
     it('rejects submission when recipient has paused their inbox', async () => {
@@ -228,6 +229,30 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
       });
       expect(res.success).toBe(false);
       expect(res.error).toContain('অবৈধ চিঠির বিভাগ');
+    });
+
+    it('correctly handles @-prefixed recipient username during profile lookup and sending', async () => {
+      const profileRes = await getPublicProfile('@anirban');
+      expect(profileRes.profile).not.toBeNull();
+      expect(profileRes.profile?.username).toBe('anirban');
+
+      const sendRes = await sendAnonymousLetter({
+        recipient_username: '@anirban',
+        category: 'compliment',
+        content: 'আপনার কাজ অসাধারণ!',
+      });
+      expect(sendRes.success).toBe(true);
+      expect(sendRes.recipient_username).toBe('anirban');
+    });
+
+    it('handles email verification resend flow correctly', async () => {
+      const invalidRes = await resendVerificationEmail('not-an-email');
+      expect(invalidRes.success).toBe(false);
+      expect(invalidRes.error).toContain('অনুগ্রহ করে সঠিক ইমেইল ঠিকানা দিন');
+
+      const validRes = await resendVerificationEmail('user@example.com');
+      expect(validRes.success).toBe(true);
+      expect(validRes.message).toBeDefined();
     });
   });
 });

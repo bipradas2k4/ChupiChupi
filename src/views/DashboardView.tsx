@@ -7,6 +7,7 @@ import {
 import { CATEGORIES } from '../types/database';
 import type { Message, Profile, ReportPayload, MessageCategory } from '../types/database';
 import { getInboxMessages, updateMessage, deleteMessage, reportMessage, updateProfileSettings } from '../lib/letterApi';
+import { getSupabaseClient } from '../lib/supabase';
 import { LetterBoxCard } from '../components/LetterBoxCard';
 
 interface DashboardViewProps {
@@ -217,15 +218,86 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
 
-  const loadMessages = async () => {
-    setLoading(true);
-    const res = await getInboxMessages(profile.id);
-    setMessages(res.messages);
-    setLoading(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [newLetterBanner, setNewLetterBanner] = useState<string | null>(null);
+
+  const loadMessages = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res = await getInboxMessages(profile.id, profile.username);
+      setMessages(res.messages);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const silentCheckNewMessages = async () => {
+    try {
+      const res = await getInboxMessages(profile.id, profile.username);
+      setMessages(prev => {
+        if (res.messages.length > prev.length) {
+          const prevIds = new Set(prev.map(m => m.id));
+          const fresh = res.messages.filter(m => !prevIds.has(m.id));
+          if (fresh.length > 0) {
+            setNewLetterBanner(`নতুন ${fresh.length}টি গোপন চিঠি এসেছে! 📬`);
+          }
+        }
+        return res.messages;
+      });
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
     loadMessages();
+
+    // 1. Supabase Realtime Channel
+    const client = getSupabaseClient();
+    let channel: any = null;
+
+    if (client && profile?.id) {
+      try {
+        channel = client
+          .channel(`realtime:inbox:${profile.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+              filter: `recipient_id=eq.${profile.id}`
+            },
+            (payload) => {
+              const newMsg = payload.new as Message;
+              if (newMsg && newMsg.recipient_id === profile.id) {
+                setMessages(prev => {
+                  if (prev.some(m => m.id === newMsg.id)) return prev;
+                  return [newMsg, ...prev];
+                });
+                setNewLetterBanner('একটি নতুন গোপন চিঠি এসেছে! 📬');
+              }
+            }
+          )
+          .subscribe();
+      } catch (rtErr) {
+        console.warn('Realtime subscription error:', rtErr);
+      }
+    }
+
+    // 2. Continuous Background Polling Safety Net (polls every 8 seconds)
+    const pollInterval = setInterval(() => {
+      silentCheckNewMessages();
+    }, 8000);
+
+    return () => {
+      if (client && channel) {
+        client.removeChannel(channel);
+      }
+      clearInterval(pollInterval);
+    };
   }, [profile.id]);
 
   const handleToggleRead = async (message: Message) => {
@@ -447,14 +519,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
 
         <button
-          onClick={loadMessages}
+          onClick={() => loadMessages(true)}
           className="btn btn-ghost"
-          title="রিফ্রেশ করুন"
-          style={{ padding: '0.55rem', marginLeft: 'auto' }}
+          id="manual-refresh-inbox-btn"
+          title="চিঠি রিফ্রেশ করুন"
+          style={{ padding: '0.55rem 0.85rem', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={15} className={refreshing || loading ? 'animate-spin' : ''} />
+          <span>{refreshing ? 'আপডেট হচ্ছে...' : 'রিফ্রেশ'}</span>
         </button>
       </div>
+
+      {/* Realtime Incoming Letter Alert Banner */}
+      {newLetterBanner && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(190, 18, 60, 0.25))',
+          border: '1.5px solid rgba(245, 158, 11, 0.6)',
+          borderRadius: '12px',
+          padding: '0.9rem 1.25rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          boxShadow: '0 8px 24px rgba(245, 158, 11, 0.15)',
+          animation: 'pulse 2s infinite'
+        }} id="new-letter-toast">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Sparkles size={20} color="#fbbf24" />
+            <span style={{ fontWeight: 600, color: '#fdf4ea', fontSize: '0.92rem' }}>
+              {newLetterBanner}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTab('all');
+              setNewLetterBanner(null);
+              window.scrollTo({ top: 350, behavior: 'smooth' });
+            }}
+            className="btn btn-primary"
+            style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem' }}
+          >
+            চিঠি দেখুন
+          </button>
+        </div>
+      )}
 
       {/* Tab 1, 2, 3: Messages List */}
       {activeTab !== 'settings' && (

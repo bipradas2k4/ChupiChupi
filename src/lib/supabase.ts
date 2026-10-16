@@ -6,16 +6,20 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const STORAGE_URL_KEY = 'chupichupi_supabase_url';
 const STORAGE_KEY_KEY = 'chupichupi_supabase_key';
 
+// Default live production Supabase credentials for ChupiChupi
+const DEFAULT_SUPABASE_URL = 'https://umpakazcsoibdlbdyalp.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGFrYXpjc29pYmRsYmR5YWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxMDgwMzAsImV4cCI6MjEwNzY4NDAzMH0.ArlcJ12XTaLfYq0RDbnPnIN_M4I8gx6tNXCM3coomBY';
+
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
-  // Check localStorage first (in-browser setting), then import.meta.env
+  // Check localStorage first (in-browser setting), then import.meta.env, then default credentials
   const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : null;
   const storedKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) : null;
 
   const envUrl = import.meta.env.VITE_SUPABASE_URL;
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  const url = (storedUrl || envUrl || '').trim();
-  const anonKey = (storedKey || envKey || '').trim();
+  const url = (storedUrl || envUrl || DEFAULT_SUPABASE_URL).trim();
+  const anonKey = (storedKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();
 
   const isConfigured = 
     Boolean(url) && 

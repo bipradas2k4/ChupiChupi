@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { 
   Mail, Lock, User, AtSign, Eye, EyeOff, CheckCircle2, 
-  AlertCircle, Sparkles 
+  AlertCircle, Sparkles, RefreshCw, Send, ArrowRight
 } from 'lucide-react';
-import { signUpWithEmail, signInWithEmail, sendPasswordReset, USERNAME_REGEX } from '../lib/auth';
+import { signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail, USERNAME_REGEX } from '../lib/auth';
 import type { Profile } from '../types/database';
 
 interface AuthViewProps {
@@ -19,12 +19,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
 }) => {
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
 
-  useEffect(() => {
-    setMode(initialMode);
-    setErrorMessage(null);
-    setErrorField(null);
-  }, [initialMode]);
-
   // Form inputs
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -39,6 +33,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMode(initialMode);
+    setErrorMessage(null);
+    setErrorField(null);
+  }, [initialMode]);
+
+  // Email verification dedicated state
+  const [isVerificationPending, setIsVerificationPending] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState<{ success: boolean; text: string } | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [needsVerificationNotice, setNeedsVerificationNotice] = useState(false);
 
   // Forgot password modal
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -56,6 +64,29 @@ export const AuthView: React.FC<AuthViewProps> = ({
     if (errorMessage) setErrorMessage(null);
   };
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
+
+  const handleResendVerification = async (targetEmail?: string) => {
+    const toSend = (targetEmail || verificationEmail || email).trim();
+    if (!toSend) return;
+    setResendingVerification(true);
+    setResendStatus(null);
+    const res = await resendVerificationEmail(toSend);
+    setResendingVerification(false);
+    if (res.success) {
+      setResendStatus({ success: true, text: res.message || 'ভেরিফিকেশন লিঙ্ক সফলভাবে পাঠানো হয়েছে।' });
+      setResendCooldown(60);
+    } else {
+      setResendStatus({ success: false, text: res.error || 'ভেরিফিকেশন লিঙ্ক পাঠানো যায়নি।' });
+    }
+  };
+
   const handleSignUp = async (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
@@ -64,6 +95,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     setErrorMessage(null);
     setInfoMessage(null);
     setErrorField(null);
+    setResendStatus(null);
 
     const trimmedDisplayName = displayName.trim();
     const cleanUser = cleanUsername;
@@ -124,7 +156,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
 
     // Only validate confirmPassword if user typed something in it
-    // If left blank, we automatically accept their password so there's zero friction!
     if (confirmPassword.trim() && password !== confirmPassword.trim()) {
       setErrorMessage('পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড মিলছে না। অনুগ্রহ করে সঠিক পাসওয়ার্ড লিখুন।');
       setErrorField('confirmPassword');
@@ -145,7 +176,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
       setLoading(false);
 
       if (res.success) {
-        if (res.profile) {
+        if (res.requiresEmailVerification) {
+          setVerificationEmail(trimmedEmail);
+          setIsVerificationPending(true);
+          setErrorMessage(null);
+          setNeedsVerificationNotice(false);
+        } else if (res.profile) {
           onSuccess(res.user, res.profile);
         } else {
           setInfoMessage(res.message || 'নিবন্ধন সম্পন্ন হয়েছে! আপনার চিঠির বাক্স প্রস্তুত।');
@@ -169,6 +205,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     setErrorMessage(null);
     setInfoMessage(null);
     setErrorField(null);
+    setResendStatus(null);
 
     const trimmedEmail = email.trim();
 
@@ -197,6 +234,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       if (res.success && res.user && res.profile) {
         onSuccess(res.user, res.profile);
+      } else if (res.requiresEmailVerification) {
+        setVerificationEmail(res.unverifiedEmail || trimmedEmail);
+        setNeedsVerificationNotice(true);
+        setErrorMessage(res.error || 'আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি।');
+        const alertEl = document.getElementById('signin-submit-btn');
+        alertEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (res.success && res.user) {
         // Create minimal profile fallback if trigger hasn't fired yet
         const fallbackProf: Profile = {
@@ -214,6 +257,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         };
         onSuccess(res.user, fallbackProf);
       } else {
+        setNeedsVerificationNotice(false);
         setErrorMessage(res.error || 'লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড সঠিক কিনা পরীক্ষা করুন।');
         const alertEl = document.getElementById('signin-submit-btn');
         alertEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -314,21 +358,74 @@ export const AuthView: React.FC<AuthViewProps> = ({
         </div>
 
         {/* Top Feedback Alerts */}
+        {/* Top Feedback Alerts */}
         {errorMessage && (
           <div style={{
-            padding: '0.8rem 1rem',
+            padding: '0.9rem 1rem',
             borderRadius: '10px',
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             color: '#fca5a5',
             fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
             marginBottom: '1.25rem'
           }} id="auth-error-alert">
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{errorMessage}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: needsVerificationNotice ? '0.6rem' : 0 }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>{errorMessage}</span>
+            </div>
+            {mode === 'signin' && (
+              <div style={{
+                marginTop: '0.6rem',
+                borderTop: '1px solid rgba(239, 68, 68, 0.25)',
+                paddingTop: '0.6rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '0.8rem', color: '#fecaca' }}>
+                  আপনার কি কোনো অ্যাকাউন্ট নেই?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('signup');
+                    setErrorMessage(null);
+                    setErrorField(null);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', background: 'rgba(190, 18, 60, 0.4)', borderColor: '#be123c' }}
+                >
+                  নতুন চিঠি বাক্স বানাও (Sign Up) 👉
+                </button>
+              </div>
+            )}
+            {needsVerificationNotice && (
+              <div style={{
+                marginTop: '0.6rem',
+                borderTop: '1px solid rgba(239, 68, 68, 0.25)',
+                paddingTop: '0.6rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <span style={{ fontSize: '0.8rem', color: '#fecaca' }}>
+                  ইমেইল পাননি? স্প্যাম ফোল্ডার চেক করুন অথবা:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleResendVerification(verificationEmail)}
+                  disabled={resendingVerification || resendCooldown > 0}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
+                >
+                  {resendingVerification ? 'পাঠানো হচ্ছে...' : resendCooldown > 0 ? `অপেক্ষা (${resendCooldown}s)` : 'ভেরিফিকেশন লিঙ্ক পাঠান'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -351,7 +448,131 @@ export const AuthView: React.FC<AuthViewProps> = ({
         )}
 
         {/* Form Body */}
-        {mode === 'signup' ? (
+        {isVerificationPending ? (
+          <div style={{ textAlign: 'center', padding: '0.75rem 0' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '2px solid rgba(245, 158, 11, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              color: '#fbbf24'
+            }}>
+              <Mail size={32} />
+            </div>
+
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: '#fdf4ea', marginBottom: '0.5rem' }}>
+              ইমেইল ভেরিফিকেশন লিঙ্ক পাঠানো হয়েছে! ✉️
+            </h3>
+
+            <p style={{ fontSize: '0.9rem', color: '#c4b5a5', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+              আমরা আপনার দেওয়া ইমেইল ঠিকানায় একটি যাচাইকরণ লিঙ্ক পাঠিয়েছি:
+            </p>
+
+            <div style={{
+              background: 'rgba(15, 8, 20, 0.9)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '10px',
+              padding: '0.75rem 1rem',
+              color: '#fbbf24',
+              fontFamily: 'monospace',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              marginBottom: '1.5rem',
+              wordBreak: 'break-all'
+            }}>
+              {verificationEmail}
+            </div>
+
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              borderRadius: '12px',
+              padding: '1rem',
+              textAlign: 'left',
+              fontSize: '0.85rem',
+              color: '#e2d7ce',
+              lineHeight: 1.6,
+              marginBottom: '1.5rem',
+              border: '1px solid var(--border-subtle)'
+            }}>
+              <p style={{ fontWeight: 600, color: '#fdf4ea', marginBottom: '0.4rem' }}>পরবর্তী করণীয়:</p>
+              <ol style={{ paddingLeft: '1.25rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <li>আপনার ইমেইল ইনবক্স (Inbox) ওপেন করুন।</li>
+                <li>ইনবক্সে না পেলে <strong>স্প্যাম (Spam / Junk)</strong> ফোল্ডারটি চেক করুন।</li>
+                <li>Supabase থেকে পাঠানো <strong>Confirm your signup</strong> লিঙ্কে ক্লিক করুন।</li>
+              </ol>
+            </div>
+
+            {resendStatus && (
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderRadius: '8px',
+                background: resendStatus.success ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                border: `1px solid ${resendStatus.success ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                color: resendStatus.success ? '#4ade80' : '#fca5a5',
+                fontSize: '0.82rem',
+                marginBottom: '1.25rem',
+                textAlign: 'center'
+              }}>
+                {resendStatus.text}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => handleResendVerification(verificationEmail)}
+                disabled={resendingVerification || resendCooldown > 0}
+                className="btn btn-secondary"
+                style={{ width: '100%', padding: '0.75rem', justifyContent: 'center' }}
+              >
+                {resendingVerification ? (
+                  <>
+                    <RefreshCw size={16} className="spin" />
+                    <span>পাঠানো হচ্ছে...</span>
+                  </>
+                ) : resendCooldown > 0 ? (
+                  <span>পুনরায় পাঠাতে অপেক্ষা করুন ({resendCooldown}s)</span>
+                ) : (
+                  <>
+                    <Send size={16} />
+                    <span>ভেরিফিকেশন লিঙ্ক পুনরায় পাঠান</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVerificationPending(false);
+                  setMode('signin');
+                  setInfoMessage('ইমেইল নিশ্চিত করার পর আপনার পাসওয়ার্ড দিয়ে লগইন করুন।');
+                }}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '0.75rem', justifyContent: 'center' }}
+              >
+                <span>ভেরিফাই করেছি, লগইন পেজে যান</span>
+                <ArrowRight size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVerificationPending(false);
+                  setMode('signup');
+                }}
+                className="btn btn-ghost"
+                style={{ fontSize: '0.82rem', color: '#a8998b' }}
+              >
+                ভুল ইমেইল দিয়েছেন? পুনরায় তথ্য দিন
+              </button>
+            </div>
+          </div>
+        ) : mode === 'signup' ? (
           <form onSubmit={handleSignUp} id="signup-form" noValidate>
             {/* Display Name */}
             <div className="form-group">

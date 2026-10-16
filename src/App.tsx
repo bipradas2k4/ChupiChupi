@@ -22,6 +22,7 @@ export const App: React.FC = () => {
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [isConfigured, setIsConfigured] = useState(() => getSupabaseCredentials().isConfigured);
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [verifiedToast, setVerifiedToast] = useState(false);
 
   const loadUserProfile = async (userId: string, userObj?: any) => {
     const client = getSupabaseClient();
@@ -36,6 +37,30 @@ export const App: React.FC = () => {
         if (!error && data) {
           setCurrentProfile(data as Profile);
           return;
+        }
+
+        if (userObj?.email) {
+          const { data: byEmail } = await client
+            .from('profiles')
+            .select('*')
+            .ilike('email', userObj.email)
+            .maybeSingle();
+          if (byEmail) {
+            setCurrentProfile(byEmail as Profile);
+            return;
+          }
+        }
+
+        if (userObj?.user_metadata?.username) {
+          const { data: byUser } = await client
+            .from('profiles')
+            .select('*')
+            .ilike('username', userObj.user_metadata.username)
+            .maybeSingle();
+          if (byUser) {
+            setCurrentProfile(byUser as Profile);
+            return;
+          }
         }
       } catch {
         // Ignore
@@ -80,6 +105,12 @@ export const App: React.FC = () => {
     const hash = window.location.hash;
     const searchParams = new URLSearchParams(window.location.search);
     const uParam = searchParams.get('u');
+
+    // Detect Supabase Email Verification callback
+    if (hash.includes('type=signup') || hash.includes('type=email_change') || searchParams.get('verified') === 'true') {
+      setVerifiedToast(true);
+      setTimeout(() => setVerifiedToast(false), 6000);
+    }
 
     let targetUsername = uParam;
     if (!targetUsername) {
@@ -222,6 +253,36 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="app-container" style={{ flex: 1, width: '100%' }}>
+        {verifiedToast && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.3))',
+            border: '1.5px solid rgba(34, 197, 94, 0.6)',
+            borderRadius: '12px',
+            padding: '1rem 1.25rem',
+            margin: '1rem auto 1.5rem',
+            maxWidth: '960px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            boxShadow: '0 8px 24px rgba(34, 197, 94, 0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#4ade80' }}>
+              <span style={{ fontSize: '1.25rem' }}>🎉</span>
+              <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+                অভিনন্দন! আপনার ইমেইল সফলভাবে নিশ্চিত হয়েছে এবং আপনার চিঠি বাক্স সক্রিয় হয়েছে।
+              </span>
+            </div>
+            <button
+              onClick={() => setVerifiedToast(false)}
+              className="btn btn-ghost"
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', color: '#86efac' }}
+            >
+              বন্ধ করুন
+            </button>
+          </div>
+        )}
+
         {currentView === 'landing' && (
           <LandingView
             onOpenLetterbox={(username) => navigateTo('letterbox', username)}

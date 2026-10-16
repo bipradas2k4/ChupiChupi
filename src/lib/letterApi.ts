@@ -156,7 +156,7 @@ export function saveLocalMessages(messages: Message[]): void {
  * Fetch a recipient's public profile by username (Case-insensitive)
  */
 export async function getPublicProfile(username: string): Promise<{ profile: Profile | null; isRealBackend: boolean; error?: string }> {
-  const cleanUsername = username.trim().toLowerCase();
+  const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
   const client = getSupabaseClient();
 
   if (client) {
@@ -223,7 +223,7 @@ export async function getPublicProfile(username: string): Promise<{ profile: Pro
  */
 export async function sendAnonymousLetter(payload: SubmitAnonymousPayload): Promise<SubmitAnonymousResult> {
   const content = (payload.content || '').trim();
-  const username = (payload.recipient_username || '').trim().toLowerCase();
+  const username = (payload.recipient_username || '').trim().toLowerCase().replace(/^@/, '');
   const category = payload.category;
 
   // Strict client-side validation
@@ -355,29 +355,55 @@ export async function sendAnonymousLetter(payload: SubmitAnonymousPayload): Prom
 }
 
 /**
- * Fetch recipient's inbox messages (Protected by RLS)
+ * Fetch recipient's inbox messages (Protected by RLS and backed by secure RPC)
  */
-export async function getInboxMessages(recipientId: string): Promise<{ messages: Message[]; isRealBackend: boolean; error?: string }> {
+export async function getInboxMessages(
+  recipientId: string, 
+  username?: string
+): Promise<{ messages: Message[]; isRealBackend: boolean; error?: string }> {
   const client = getSupabaseClient();
   let supabaseMessages: Message[] = [];
 
   if (client) {
     try {
-      const { data, error } = await client
-        .from('messages')
-        .select('*')
-        .eq('recipient_id', recipientId)
-        .order('created_at', { ascending: false });
+      // 1. Try secure fetch_inbox_messages_v2 which matches by BOTH UUID and profile username
+      const { data: rpcV2Data, error: rpcV2Error } = await client.rpc('fetch_inbox_messages_v2', {
+        p_recipient_id: recipientId,
+        p_username: username || null
+      });
 
-      if (!error && data) {
-        supabaseMessages = data as Message[];
+      if (!rpcV2Error && rpcV2Data && Array.isArray(rpcV2Data)) {
+        supabaseMessages = rpcV2Data as Message[];
+      } else {
+        // 2. Try classic RPC
+        const { data: rpcData, error: rpcError } = await client.rpc('fetch_inbox_messages', {
+          p_recipient_id: recipientId
+        });
+
+        if (!rpcError && rpcData && Array.isArray(rpcData)) {
+          supabaseMessages = rpcData as Message[];
+        } else {
+          // 3. Direct table select fallback
+          const { data, error } = await client
+            .from('messages')
+            .select('*')
+            .eq('recipient_id', recipientId)
+            .order('created_at', { ascending: false });
+
+          if (!error && data) {
+            supabaseMessages = data as Message[];
+          }
+        }
       }
     } catch {
       // ignore
     }
   }
 
-  const localMsgs = getLocalMessages().filter(m => m.recipient_id === recipientId);
+  const cleanUser = username?.toLowerCase().replace(/^@/, '');
+  const localMsgs = getLocalMessages().filter(
+    m => m.recipient_id === recipientId || (cleanUser && m.recipient_id === `usr_${cleanUser}`)
+  );
   const combined = [...supabaseMessages, ...localMsgs];
   const map = new Map<string, Message>();
   for (const m of combined) {
