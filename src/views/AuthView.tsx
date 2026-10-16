@@ -3,7 +3,7 @@ import {
   Mail, Lock, User, AtSign, Eye, EyeOff, CheckCircle2, 
   AlertCircle, Sparkles 
 } from 'lucide-react';
-import { signUpWithEmail, signInWithEmail, signInWithGoogle, signUpOrSignInWithGoogleAccount, sendPasswordReset, USERNAME_REGEX } from '../lib/auth';
+import { signUpWithEmail, signInWithEmail, sendPasswordReset, USERNAME_REGEX } from '../lib/auth';
 import type { Profile } from '../types/database';
 
 interface AuthViewProps {
@@ -45,12 +45,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState<string | null>(null);
 
-  // Google Auth Modal
+  // Google Auth Coming Soon Modal
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [googleName, setGoogleName] = useState('');
-  const [googleError, setGoogleError] = useState<string | null>(null);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
 
@@ -228,47 +224,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  const handleGoogleAuth = async () => {
-    setErrorMessage(null);
-    setLoading(true);
-    try {
-      const res = await signInWithGoogle();
-      setLoading(false);
-      if (res.url) {
-        return; // redirecting to OAuth
-      }
-      setGoogleEmail(email.trim() || 'user@gmail.com');
-      setGoogleName(displayName.trim() || 'Google User');
-      setGoogleError(null);
-      setShowGoogleModal(true);
-    } catch {
-      setLoading(false);
-      setGoogleEmail(email.trim() || 'user@gmail.com');
-      setGoogleName(displayName.trim() || 'Google User');
-      setGoogleError(null);
-      setShowGoogleModal(true);
-    }
+  const handleGoogleAuth = () => {
+    setShowGoogleModal(true);
   };
 
-  const handleConfirmGoogleAuth = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanEmail = googleEmail.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setGoogleError('অনুগ্রহ করে একটি সঠিক Google ইমেইল ঠিকানা দিন (যেমন: name@gmail.com)');
-      return;
-    }
-    setGoogleLoading(true);
-    setGoogleError(null);
-    const cleanName = googleName.trim() || cleanEmail.split('@')[0];
-    const res = await signUpOrSignInWithGoogleAccount(cleanEmail, cleanName);
-    setGoogleLoading(false);
-    if (res.success && res.user && res.profile) {
-      setShowGoogleModal(false);
-      onSuccess(res.user, res.profile);
-    } else {
-      setGoogleError(res.error || 'Google সাইন-ইন সম্পন্ন করা যায়নি।');
-    }
-  };
+
 
   const handleSendResetEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -554,9 +514,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               type="submit"
               id="signup-submit-btn"
               disabled={loading}
-              onClick={(e) => {
-                if (!loading) handleSignUp(e);
-              }}
               className="btn btn-primary"
               style={{ 
                 width: '100%', 
@@ -681,9 +638,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               type="submit"
               id="signin-submit-btn"
               disabled={loading}
-              onClick={(e) => {
-                if (!loading) handleSignIn(e);
-              }}
               className="btn btn-primary"
               style={{ 
                 width: '100%', 
@@ -802,111 +756,62 @@ export const AuthView: React.FC<AuthViewProps> = ({
         </div>
       )}
 
-      {/* Google Sign In / Sign Up Modal */}
+      {/* Google Sign In / Sign Up "Coming Soon" Popup */}
       {showGoogleModal && (
         <div className="modal-overlay" onClick={() => setShowGoogleModal(false)} style={{ zIndex: 1200 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px', padding: '2rem' }} id="google-auth-modal">
-            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.75rem',
-                boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-              }}>
-                <svg width="26" height="26" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-              </div>
-              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', color: '#fdf4ea', marginBottom: '0.35rem' }}>
-                {mode === 'signup' ? 'Google দিয়ে সাইন আপ করুন' : 'Google দিয়ে সাইন ইন করুন'}
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: '#a8998b' }}>
-                চুপিচুপি (ChupiChupi)-তে আপনার Google অ্যাকাউন্ট দিয়ে এক ক্লিকে এগিয়ে চলুন
-              </p>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', padding: '2.25rem 2rem', textAlign: 'center' }} id="google-coming-soon-modal">
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 8px 25px rgba(0,0,0,0.3)'
+            }}>
+              <svg width="30" height="30" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
             </div>
 
-            {googleError && (
-              <div style={{
-                padding: '0.75rem 0.9rem',
-                borderRadius: '10px',
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                color: '#fca5a5',
-                fontSize: '0.85rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                marginBottom: '1rem'
-              }}>
-                <AlertCircle size={16} />
-                <span>{googleError}</span>
-              </div>
-            )}
+            <div style={{
+              display: 'inline-block',
+              padding: '0.25rem 0.85rem',
+              borderRadius: '20px',
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              color: '#f59e0b',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              marginBottom: '0.85rem'
+            }}>
+              🚀 শীঘ্রই আসছে (Coming Soon)
+            </div>
 
-            <form onSubmit={handleConfirmGoogleAuth} noValidate>
-              <div className="form-group">
-                <label className="form-label">Google ইমেইল (Gmail)</label>
-                <input
-                  type="email"
-                  id="google-email-input"
-                  className="form-input"
-                  placeholder="yourname@gmail.com"
-                  value={googleEmail}
-                  onChange={(e) => {
-                    setGoogleEmail(e.target.value);
-                    if (googleError) setGoogleError(null);
-                  }}
-                  autoFocus
-                />
-              </div>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.45rem', color: '#fdf4ea', marginBottom: '0.6rem' }}>
+              গুগল সাইন-ইন খুব শীঘ্রই চালু হবে!
+            </h3>
 
-              <div className="form-group">
-                <label className="form-label">নাম (Google Profile Name)</label>
-                <input
-                  type="text"
-                  id="google-name-input"
-                  className="form-input"
-                  placeholder="আপনার নাম"
-                  value={googleName}
-                  onChange={(e) => setGoogleName(e.target.value)}
-                />
-              </div>
+            <p style={{ fontSize: '0.9rem', color: '#c4b5a5', lineHeight: 1.6, marginBottom: '1.75rem' }}>
+              গুগল সাইন-ইন ও সাইন-আপ সুবিধা খুব শীঘ্রই চুপিচুপি-তে চালু হতে যাচ্ছে।
+              <br /><br />
+              আপাতত আপনার <strong>ইমেইল ও পাসওয়ার্ড</strong> দিয়ে অনায়াসেই নতুন চিঠির বাক্স তৈরি করুন বা প্রবেশ করুন!
+            </p>
 
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowGoogleModal(false)}
-                  className="btn btn-ghost"
-                  style={{ flex: 1 }}
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  id="google-confirm-submit-btn"
-                  disabled={googleLoading}
-                  className="btn btn-primary"
-                  style={{
-                    flex: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem'
-                  }}
-                >
-                  <Sparkles size={16} />
-                  <span>{googleLoading ? 'প্রবেশ করা হচ্ছে...' : 'চালিয়ে যান'}</span>
-                </button>
-              </div>
-            </form>
+            <button
+              type="button"
+              id="google-coming-soon-close-btn"
+              onClick={() => setShowGoogleModal(false)}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '0.85rem', fontSize: '1rem' }}
+            >
+              ঠিক আছে, বুঝতে পেরেছি
+            </button>
           </div>
         </div>
       )}

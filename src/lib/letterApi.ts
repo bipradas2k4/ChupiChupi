@@ -188,23 +188,7 @@ export async function getPublicProfile(username: string): Promise<{ profile: Pro
     return { profile: found, isRealBackend: false };
   }
 
-  // Graceful fallback for any valid username so the shared link ALWAYS opens smoothly on any phone/device!
-  const dynamicProfile: Profile = {
-    id: `recipient-${cleanUsername}`,
-    username: cleanUsername,
-    display_name: cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1),
-    avatar_url: null,
-    prompt: 'আমাকে তোমার গোপন মনের কথা বলো... 🤫',
-    bio: 'বেনামী চিঠি পাঠানোর চিঠি বাক্স',
-    inbox_paused: false,
-    is_banned: false,
-    role: 'user',
-    envelope_theme: 'vintage_burgundy',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-  saveLocalProfile(dynamicProfile);
-  return { profile: dynamicProfile, isRealBackend: false };
+  return { profile: null, isRealBackend: false, error: 'প্রাপকের চিঠি বাক্স খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম পরীক্ষা করুন।' };
 }
 
 /**
@@ -272,20 +256,13 @@ export async function sendAnonymousLetter(payload: SubmitAnonymousPayload): Prom
 
   // Fallback recipient resolution from local persistent profiles
   const profiles = getLocalProfiles();
-  const targetProfile = profiles[username] || {
-    id: `recipient-${username}`,
-    username,
-    display_name: username.charAt(0).toUpperCase() + username.slice(1),
-    avatar_url: null,
-    prompt: 'আমাকে তোমার গোপন মনের কথা বলো... 🤫',
-    bio: '',
-    inbox_paused: false,
-    is_banned: false,
-    role: 'user',
-    envelope_theme: 'vintage_burgundy',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
+  const targetProfile = profiles[username];
+  if (!targetProfile) {
+    return { 
+      success: false, 
+      error: 'এই ইউজারনেমে কোনো চিঠি বাক্স পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম পরীক্ষা করুন।' 
+    };
+  }
 
   if (targetProfile.inbox_paused) {
     return { 
