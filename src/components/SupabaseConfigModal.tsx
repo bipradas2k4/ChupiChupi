@@ -13,7 +13,7 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
   onClose,
   onConfigChanged,
 }) => {
-  const [url, setUrl] = useState(() => getSupabaseCredentials().url || 'https://umpakazcsoibdlbdyalp.supabase.co');
+  const [url, setUrl] = useState(() => getSupabaseCredentials().url || 'https://wfssqoirmhvlpudooigx.supabase.co');
   const [anonKey, setAnonKey] = useState(() => getSupabaseCredentials().anonKey);
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<{ connected: boolean; message: string; hasSchema?: boolean } | null>(null);
@@ -21,7 +21,7 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
   const [copiedRedirect, setCopiedRedirect] = useState(false);
   const [activeTab, setActiveTab] = useState<'config' | 'email' | 'oauth' | 'sql'>('config');
 
-  const projectId = 'umpakazcsoibdlbdyalp';
+  const projectId = 'wfssqoirmhvlpudooigx';
   const redirectUri = `https://${projectId}.supabase.co/auth/v1/callback`;
 
   const runHealthCheck = async () => {
@@ -45,7 +45,7 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
 
   const handleClear = () => {
     clearSupabaseCredentials();
-    setUrl('https://umpakazcsoibdlbdyalp.supabase.co');
+    setUrl('https://wfssqoirmhvlpudooigx.supabase.co');
     setAnonKey('');
     onConfigChanged();
     setStatus({
@@ -351,7 +351,7 @@ end $$;`;
               <input
                 type="text"
                 className="form-input"
-                placeholder="https://umpakazcsoibdlbdyalp.supabase.co"
+                placeholder="https://wfssqoirmhvlpudooigx.supabase.co"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
@@ -396,7 +396,7 @@ end $$;`;
                 <li>
                   Supabase ড্যাশবোর্ডে প্রবেশ করুন: <br />
                   <a 
-                    href="https://supabase.com/dashboard/project/umpakazcsoibdlbdyalp/auth/providers" 
+                    href="https://supabase.com/dashboard/project/wfssqoirmhvlpudooigx/auth/providers" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     style={{ color: '#fbbf24', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}
@@ -410,7 +410,7 @@ end $$;`;
                 </li>
                 <li>
                   <a 
-                    href="https://supabase.com/dashboard/project/umpakazcsoibdlbdyalp/auth/url-configuration" 
+                    href="https://supabase.com/dashboard/project/wfssqoirmhvlpudooigx/auth/url-configuration" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     style={{ color: '#fbbf24', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
@@ -468,7 +468,7 @@ end $$;`;
                 <li>
                   Supabase ড্যাশবোর্ডে প্রবেশ করুন: <br />
                   <a 
-                    href="https://supabase.com/dashboard/project/umpakazcsoibdlbdyalp/auth/providers" 
+                    href="https://supabase.com/dashboard/project/wfssqoirmhvlpudooigx/auth/providers" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     style={{ color: '#fbbf24', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}

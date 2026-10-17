@@ -3,7 +3,7 @@ import {
   Mail, Lock, User, AtSign, Eye, EyeOff, CheckCircle2, 
   AlertCircle, Sparkles, RefreshCw, Send, ArrowRight
 } from 'lucide-react';
-import { signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail, USERNAME_REGEX } from '../lib/auth';
+import { signUpWithEmail, signInWithEmail, sendPasswordReset, resendVerificationEmail, signInWithGoogle, USERNAME_REGEX } from '../lib/auth';
 import type { Profile } from '../types/database';
 
 interface AuthViewProps {
@@ -268,8 +268,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  const handleGoogleAuth = () => {
-    setShowGoogleModal(true);
+  const handleGoogleAuth = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await signInWithGoogle();
+      if (res.error || res.fallbackToModal) {
+        setShowGoogleModal(true);
+      }
+    } catch {
+      setShowGoogleModal(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
 

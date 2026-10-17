@@ -1,8 +1,5 @@
-// Supabase Edge Function: submit-anonymous-message
-// Endpoint for unauthenticated guest letter submissions
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,8 +7,24 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-serve(async (req: Request) => {
-  // Handle CORS preflight
+interface SubmitPayload {
+  recipient_username: string;
+  category: string;
+  content: string;
+  client_hash?: string;
+}
+
+const VALID_CATEGORIES = new Set([
+  "secret",
+  "confession",
+  "compliment",
+  "fun",
+  "advice",
+  "friendship",
+  "other",
+]);
+
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -24,70 +37,67 @@ serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const body: SubmitPayload = await req.json();
+    const recipient_username = (body.recipient_username || "").trim().toLowerCase().replace(/^@/, "");
+    const content = (body.content || "").trim();
+    const category = body.category;
+    const client_hash = (body.client_hash || "").trim();
+    const userAgent = req.headers.get("user-agent") || "";
+    const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "";
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    // 1. Validation
+    if (!recipient_username) {
       return new Response(
-        JSON.stringify({ success: false, error: "Server configuration missing" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const { recipient_username, category, content } = body;
-
-    if (!recipient_username || !content) {
-      return new Response(
-        JSON.stringify({ success: false, error: "প্রাপক এবং চিঠির বিবরণ আবশ্যক (Recipient and content are required)" }),
+        JSON.stringify({ success: false, error: "প্রাপকের নাম উল্লেখ করা আবশ্যক।" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Hash client IP to preserve sender privacy while preventing abuse
-    const rawIp = req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown";
-    const userAgent = req.headers.get("user-agent") || "unknown";
+    if (!content) {
+      return new Response(
+        JSON.stringify({ success: false, error: "চিঠি ফাঁকা রাখা যাবে না (Letter content cannot be empty)." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawIp));
-    const ipHash = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .substring(0, 32);
+    if (content.length > 1000) {
+      return new Response(
+        JSON.stringify({ success: false, error: "চিঠির দৈর্ঘ্য সর্বোচ্চ ১০০০ অক্ষর হতে পারে।" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const uaBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(userAgent));
-    const uaHash = Array.from(new Uint8Array(uaBuffer))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .substring(0, 32);
+    if (!VALID_CATEGORIES.has(category)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "অবৈধ চিঠির বিভাগ নির্বাচন করা হয়েছে।" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Call the database security-definer function submit_anonymous_message
     const { data, error } = await supabase.rpc("submit_anonymous_message", {
       p_recipient_username: recipient_username,
-      p_category: category || "secret",
+      p_category: category,
       p_content: content,
-      p_client_hash: ipHash,
-      p_user_agent_hash: uaHash,
+      p_client_hash: client_hash || clientIp,
+      p_user_agent_hash: userAgent ? userAgent.substring(0, 64) : null,
     });
 
     if (error) {
       return new Response(
         JSON.stringify({ success: false, error: error.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (data && data.success === false) {
-      return new Response(
-        JSON.stringify(data),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify(data),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify(data), {
+      status: data?.success ? 200 : 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (err: any) {
     return new Response(
       JSON.stringify({ success: false, error: err.message || "Internal server error" }),

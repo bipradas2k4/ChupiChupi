@@ -6,17 +6,27 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const STORAGE_URL_KEY = 'chupichupi_supabase_url';
 const STORAGE_KEY_KEY = 'chupichupi_supabase_key';
 
-// Default live production Supabase credentials for ChupiChupi
-const DEFAULT_SUPABASE_URL = 'https://umpakazcsoibdlbdyalp.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGFrYXpjc29pYmRsYmR5YWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxMDgwMzAsImV4cCI6MjEwNzY4NDAzMH0.ArlcJ12XTaLfYq0RDbnPnIN_M4I8gx6tNXCM3coomBY';
+// Default live production Supabase credentials for ChupiChupi (Project: wfssqoirmhvlpudooigx)
+const DEFAULT_SUPABASE_URL = 'https://wfssqoirmhvlpudooigx.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmc3Nxb2lybWh2bHB1ZG9vaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxODIyMDEsImV4cCI6MjEwNzc1ODIwMX0.if37nY5Nf8TBxec6x84Ag8HjV0799eKP8wUlC7pM1Pc';
 
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
-  // Check localStorage first (in-browser setting), then import.meta.env, then default credentials
-  const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : null;
-  const storedKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) : null;
+  // Auto-purge stale or deleted project credentials and dummy accounts from browser storage
+  if (typeof window !== 'undefined') {
+    const storedUrl = localStorage.getItem(STORAGE_URL_KEY);
+    if (storedUrl && (!storedUrl.includes('wfssqoirmhvlpudooigx') || storedUrl.includes('umpakazcsoibdlbdyalp'))) {
+      localStorage.removeItem(STORAGE_URL_KEY);
+      localStorage.removeItem(STORAGE_KEY_KEY);
+      localStorage.removeItem('chupichupi_local_accounts');
+      localStorage.removeItem('chupichupi_active_session');
+    }
+  }
 
   const envUrl = import.meta.env.VITE_SUPABASE_URL;
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : null;
+  const storedKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) : null;
 
   const url = (storedUrl || envUrl || DEFAULT_SUPABASE_URL).trim();
   const anonKey = (storedKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();

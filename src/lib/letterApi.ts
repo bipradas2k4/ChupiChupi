@@ -26,7 +26,7 @@ async function getClientHash(): Promise<string> {
 // Fallback demo letterbox when no Supabase credentials are configured
 export const DEMO_PROFILES: Record<string, Profile> = {
   anirban: {
-    id: 'demo-anirban-id',
+    id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
     username: 'anirban',
     display_name: 'অনির্বাণ মুখোপাধ্যায়',
     avatar_url: null,
@@ -40,7 +40,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
     updated_at: new Date().toISOString()
   },
   priya: {
-    id: 'demo-priya-id',
+    id: 'aa761b65-6915-494b-a6b3-4cab0db652b6',
     username: 'priya',
     display_name: 'প্রিয়া সেনগুপ্ত',
     avatar_url: null,
@@ -54,7 +54,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
     updated_at: new Date().toISOString()
   },
   tashfeen: {
-    id: 'demo-tashfeen-id',
+    id: '0bb2319b-0309-484b-92f5-364cc3f00c2a',
     username: 'tashfeen',
     display_name: 'তাশফীন রহমান',
     avatar_url: null,
@@ -73,7 +73,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
 let localMockMessages: Message[] = [
   {
     id: 'msg-demo-1',
-    recipient_id: 'demo-anirban-id',
+    recipient_id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
     category: 'secret',
     content: 'তোমার লেখার হাত অসাধারণ! কলেজে দূর থেকে তোমার আবৃত্তি শুনতাম, কিন্তু কখনো সামনে গিয়ে বলার সাহস হয়নি। ভালো থেকো।',
     reaction: '❤️',
@@ -86,7 +86,7 @@ let localMockMessages: Message[] = [
   },
   {
     id: 'msg-demo-2',
-    recipient_id: 'demo-anirban-id',
+    recipient_id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
     category: 'compliment',
     content: 'তোমার হাসিটায় এক অদ্ভুত মায়া আছে, সারা দিনের ক্লান্তি মুছে যায়!',
     reaction: '🌸',
@@ -174,11 +174,11 @@ export async function getPublicProfile(username: string): Promise<{ profile: Pro
         return { profile: data as Profile, isRealBackend: true };
       }
     } catch {
-      // Fallback to local
+      // Fallback
     }
   }
 
-  // Check persistent local profiles
+  // Check seed/local profiles if database offline
   const profiles = getLocalProfiles();
   const found = profiles[cleanUsername];
   if (found) {
@@ -188,33 +188,7 @@ export async function getPublicProfile(username: string): Promise<{ profile: Pro
     return { profile: found, isRealBackend: false };
   }
 
-  // Cross-device / mobile seamless resolution:
-  // When opened on mobile via WhatsApp or social links, dynamically initialize the recipient letterbox
-  const cleanUser = cleanUsername.replace(/^@/, '').trim();
-  if (cleanUser && cleanUser.length >= 2 && !cleanUser.includes('ghost_user')) {
-    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const urlName = searchParams?.get('name');
-    const urlPrompt = searchParams?.get('p');
-
-    const dynamicProfile: Profile = {
-      id: `usr_${cleanUser}`,
-      username: cleanUser,
-      display_name: urlName || (cleanUser.charAt(0).toUpperCase() + cleanUser.slice(1)),
-      avatar_url: null,
-      prompt: urlPrompt || 'আমাকে তোমার গোপন মনের কথা বলো... 🤫',
-      bio: 'বেনামী চিঠি পাঠানোর চিঠি বাক্স',
-      inbox_paused: false,
-      is_banned: false,
-      role: 'user',
-      envelope_theme: 'vintage_burgundy',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    saveLocalProfile(dynamicProfile);
-    return { profile: dynamicProfile, isRealBackend: false };
-  }
-
-  return { profile: null, isRealBackend: false, error: 'প্রাপকের চিঠি বাক্স খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম পরীক্ষা করুন।' };
+  return { profile: null, isRealBackend: true, error: 'এই ইউজারনেমে কোনো চিঠি বাক্স পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম পরীক্ষা করুন।' };
 }
 
 /**
@@ -361,6 +335,11 @@ export async function getInboxMessages(
   recipientId: string, 
   username?: string
 ): Promise<{ messages: Message[]; isRealBackend: boolean; error?: string }> {
+  const cleanRecipientId = recipientId === 'demo-anirban-id' ? '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3'
+    : recipientId === 'demo-priya-id' ? 'aa761b65-6915-494b-a6b3-4cab0db652b6'
+    : recipientId === 'demo-tashfeen-id' ? '0bb2319b-0309-484b-92f5-364cc3f00c2a'
+    : recipientId;
+
   const client = getSupabaseClient();
   let supabaseMessages: Message[] = [];
 
@@ -368,7 +347,7 @@ export async function getInboxMessages(
     try {
       // 1. Try secure fetch_inbox_messages_v2 which matches by BOTH UUID and profile username
       const { data: rpcV2Data, error: rpcV2Error } = await client.rpc('fetch_inbox_messages_v2', {
-        p_recipient_id: recipientId,
+        p_recipient_id: cleanRecipientId,
         p_username: username || null
       });
 
@@ -377,7 +356,7 @@ export async function getInboxMessages(
       } else {
         // 2. Try classic RPC
         const { data: rpcData, error: rpcError } = await client.rpc('fetch_inbox_messages', {
-          p_recipient_id: recipientId
+          p_recipient_id: cleanRecipientId
         });
 
         if (!rpcError && rpcData && Array.isArray(rpcData)) {
@@ -387,7 +366,7 @@ export async function getInboxMessages(
           const { data, error } = await client
             .from('messages')
             .select('*')
-            .eq('recipient_id', recipientId)
+            .eq('recipient_id', cleanRecipientId)
             .order('created_at', { ascending: false });
 
           if (!error && data) {
@@ -413,7 +392,20 @@ export async function getInboxMessages(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
-  return { messages: uniqueMessages, isRealBackend: supabaseMessages.length > 0 };
+  const mappedMessages = uniqueMessages.map(m => {
+    if (recipientId === 'demo-anirban-id' && (m.recipient_id === '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3' || m.recipient_id === 'demo-anirban-id')) {
+      return { ...m, recipient_id: 'demo-anirban-id' };
+    }
+    if (recipientId === 'demo-priya-id' && (m.recipient_id === 'aa761b65-6915-494b-a6b3-4cab0db652b6' || m.recipient_id === 'demo-priya-id')) {
+      return { ...m, recipient_id: 'demo-priya-id' };
+    }
+    if (recipientId === 'demo-tashfeen-id' && (m.recipient_id === '0bb2319b-0309-484b-92f5-364cc3f00c2a' || m.recipient_id === 'demo-tashfeen-id')) {
+      return { ...m, recipient_id: 'demo-tashfeen-id' };
+    }
+    return m;
+  });
+
+  return { messages: mappedMessages, isRealBackend: supabaseMessages.length > 0 };
 }
 
 /**

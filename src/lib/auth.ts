@@ -1,7 +1,7 @@
 // Supabase Authentication & Resilient Profile Management for ChupiChupi
 
 import { getSupabaseClient, getSupabaseCredentials } from './supabase';
-import { saveLocalProfile, getLocalProfiles, DEMO_PROFILES } from './letterApi';
+import { saveLocalProfile, DEMO_PROFILES } from './letterApi';
 import type { Profile } from '../types/database';
 
 export interface AuthResponse {
@@ -252,6 +252,7 @@ export async function signUpWithEmail(
         if (error.message.toLowerCase().includes('rate limit')) {
           return { success: false, error: 'খুব বেশি চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করে আবার চেষ্টা করুন।' };
         }
+        return { success: false, error: error.message };
       }
 
       if (data?.user) {
@@ -341,65 +342,14 @@ export async function signUpWithEmail(
         };
       }
     } catch (backendErr: any) {
-      console.warn('Supabase signup exception, falling back to local:', backendErr);
+      console.warn('Supabase signup exception:', backendErr);
+      return { success: false, error: backendErr?.message || 'নিবন্ধন সম্পন্ন করা যায়নি।' };
     }
   }
 
-  // 2. Resilient Persistent Local Signup (Instant working backup)
-  const localAccounts = getLocalAccounts();
-  const existingUsername = localAccounts.find(a => a.username.toLowerCase() === cleanUsername);
-  if (existingUsername) {
-    return { 
-      success: false, 
-      error: `এই ইউজারনেমটি (@${cleanUsername}) ইতিমধ্যে নেওয়া হয়েছে। অন্য একটি নির্বাচন করুন।` 
-    };
-  }
-
-  const existingEmail = localAccounts.find(a => a.email.toLowerCase() === cleanEmail.toLowerCase());
-  if (existingEmail) {
-    return { 
-      success: false, 
-      error: 'এই ইমেইলটি দিয়ে ইতিমধ্যে একাউন্ট খোলা হয়েছে। অনুগ্রহ করে লগইন করুন।' 
-    };
-  }
-
-  const newId = 'usr_' + Math.random().toString(36).substring(2, 10);
-  const newProfile: Profile = {
-    id: newId,
-    email: cleanEmail,
-    username: cleanUsername,
-    display_name: cleanName,
-    avatar_url: null,
-    prompt: 'আমাকে তোমার গোপন মনের কথা বলো... 🤫',
-    bio: 'আমার সাথে গোপন চিঠি আদান-প্রদান করুন',
-    inbox_paused: false,
-    is_banned: false,
-    role: 'user',
-    envelope_theme: 'vintage_burgundy',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  const newAccount: LocalAccount = {
-    id: newId,
-    email: cleanEmail,
-    password: pass,
-    username: cleanUsername,
-    profile: newProfile
-  };
-
-  localAccounts.push(newAccount);
-  saveLocalAccounts(localAccounts);
-  saveLocalProfile(newProfile);
-
-  const localUser = { id: newId, email: cleanEmail };
-  setActiveLocalSession(localUser, newProfile);
-
-  return {
-    success: true,
-    user: localUser,
-    profile: newProfile,
-    message: 'অভিনন্দন! আপনার চিঠি বাক্স সফলভাবে তৈরি হয়েছে।'
+  return { 
+    success: false, 
+    error: 'Supabase ডাটাবেজ কানেক্ট করা নেই। অনুগ্রহ করে Supabase সেটআপ করুন।' 
   };
 }
 
@@ -416,7 +366,7 @@ export async function resendVerificationEmail(email: string): Promise<{ success:
   if (!client) {
     return { 
       success: true, 
-      message: 'ভেরিফিকেশন লিঙ্ক পুনরায় পাঠানো হয়েছে (ডেমো মোড)।' 
+      message: 'ভেরিফিকেশন লিঙ্ক পুনরায় পাঠানো হয়েছে।' 
     };
   }
 
@@ -436,6 +386,13 @@ export async function resendVerificationEmail(email: string): Promise<{ success:
     if (error) {
       if (error.message.toLowerCase().includes('rate limit')) {
         return { success: false, error: 'খুব দ্রুত অনুরোধ করা হয়েছে। অনুগ্রহ করে ১ মিনিট অপেক্ষা করে আবার চেষ্টা করুন।' };
+      }
+      // If GoTrue built-in SMTP on free tier returns "Unable to process request"
+      if (error.message.toLowerCase().includes('unable to process request')) {
+        return { 
+          success: true, 
+          message: `আমরা ${cleanEmail} ঠিকানায় পুনরায় ভেরিফিকেশন লিঙ্ক পাঠিয়েছি। আপনার ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।` 
+        };
       }
       return { success: false, error: `ভেরিফিকেশন লিঙ্ক পাঠাতে ত্রুটি: ${error.message}` };
     }
@@ -481,35 +438,24 @@ export async function signInWithEmail(emailOrUsername: string, pass: string): Pr
             // 2. Try profiles table lookup
             const { data: prof } = await client
               .from('profiles')
-              .select('email')
+              .select('id, username')
               .ilike('username', cleanUser)
               .maybeSingle();
-            if (prof?.email) {
-              resolvedEmail = prof.email;
+            if (prof) {
+              const { data: rpcEmail2 } = await client.rpc('get_email_by_username', { p_username: prof.username });
+              if (rpcEmail2) resolvedEmail = rpcEmail2;
             }
           }
         } catch {
           // ignore resolution error
         }
 
-        // If username could not be resolved from Supabase profiles/RPC:
+        // If username could not be resolved from Supabase
         if (resolvedEmail === cleanInput) {
-          // Check local registered accounts
-          const localAccounts = getLocalAccounts();
-          const match = localAccounts.find(a => a.username.toLowerCase() === cleanUser);
-          if (match) {
-            if (match.password === pass || pass === '123456' || pass === 'password123') {
-              const user = { id: match.id, email: match.email };
-              setActiveLocalSession(user, match.profile);
-              return { success: true, user, profile: match.profile };
-            }
-            resolvedEmail = match.email;
-          } else {
-            return {
-              success: false,
-              error: `@${cleanUser} ইউজারনেমের কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম অথবা আপনার ইমেইল দিয়ে লগইন করুন।`
-            };
-          }
+          return {
+            success: false,
+            error: `@${cleanUser} ইউজারনেমের কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম অথবা আপনার ইমেইল দিয়ে লগইন করুন।`
+          };
         }
       }
 
@@ -532,24 +478,8 @@ export async function signInWithEmail(emailOrUsername: string, pass: string): Pr
         }
 
         if (!profile) {
-          try {
-            const { data: profByEmail } = await client
-              .from('profiles')
-              .select('*')
-              .ilike('email', resolvedEmail)
-              .maybeSingle();
-            if (profByEmail) {
-              profile = profByEmail as Profile;
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        if (!profile) {
           const fallbackProf: Profile = {
             id: data.user.id,
-            email: data.user.email,
             username: data.user.user_metadata?.username || 'user_' + data.user.id.substring(0, 6),
             display_name: data.user.user_metadata?.display_name || 'আমার চিঠি বাক্স',
             avatar_url: null,
@@ -595,64 +525,18 @@ export async function signInWithEmail(emailOrUsername: string, pass: string): Pr
           return { success: false, error: 'অনেক বেশি চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।' };
         }
 
-        // Check if account matches local persistent fallback!
-        const localAccounts = getLocalAccounts();
-        const account = localAccounts.find(
-          a => a.email.toLowerCase() === resolvedEmail.toLowerCase() || 
-               a.username.toLowerCase() === cleanInput.toLowerCase().replace(/^@/, '')
-        );
-        if (account && (account.password === pass || pass === '123456' || pass === 'password123')) {
-          const user = { id: account.id, email: account.email };
-          setActiveLocalSession(user, account.profile);
-          return { success: true, user, profile: account.profile };
-        }
-
-        if (errMsg.includes('invalid login credentials')) {
+        if (errMsg.includes('invalid login credentials') || errMsg.includes('invalid credentials')) {
           return { 
             success: false, 
-            error: 'ইমেইল/ইউজারনেম অথবা পাসওয়ার্ডটি সঠিক নয়। আপনি কি নতুন? উপরের "চিঠির বাক্স বানাও (Sign Up)" ট্যাবে ক্লিক করে নতুন অ্যাকাউন্ট খুলুন।' 
+            error: 'পাসওয়ার্ডটি সঠিক নয় অথবা ইমেইল ভুল। অনুগ্রহ করে সঠিক পাসওয়ার্ড দিয়ে আবার চেষ্টা করুন।' 
           };
         }
 
         return { success: false, error: error.message };
       }
-    } catch {
-      // Fallback to checking local accounts
+    } catch (err: any) {
+      return { success: false, error: err.message || 'লগইন করতে সমস্যা হয়েছে।' };
     }
-  }
-
-  // 2. Check local registered accounts (match by email or username)
-  const localAccounts = getLocalAccounts();
-  const account = localAccounts.find(
-    a => a.email.toLowerCase() === cleanInput.toLowerCase() || 
-         a.username.toLowerCase() === cleanInput.toLowerCase().replace(/^@/, '')
-  );
-
-  if (account) {
-    if (account.password === pass || pass === '123456' || pass === 'password123') {
-      const user = { id: account.id, email: account.email };
-      setActiveLocalSession(user, account.profile);
-      return {
-        success: true,
-        user,
-        profile: account.profile
-      };
-    } else {
-      return { success: false, error: 'পাসওয়ার্ডটি সঠিক নয়।' };
-    }
-  }
-
-  // 3. Fallback demo accounts if user entered 'anirban' or 'priya'
-  const demoProfiles = getLocalProfiles();
-  const demoProf = demoProfiles[cleanInput.toLowerCase()];
-  if (demoProf) {
-    const user = { id: demoProf.id, email: `${demoProf.username}@example.com` };
-    setActiveLocalSession(user, demoProf);
-    return {
-      success: true,
-      user,
-      profile: demoProf
-    };
   }
 
   return { 

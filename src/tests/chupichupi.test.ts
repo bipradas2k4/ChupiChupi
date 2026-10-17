@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sendAnonymousLetter, getPublicProfile, getInboxMessages } from '../lib/letterApi';
-import { USERNAME_REGEX, signUpWithEmail, signInWithEmail, signUpOrSignInWithGoogleAccount, resendVerificationEmail } from '../lib/auth';
+import { USERNAME_REGEX, signUpWithEmail, signInWithEmail, signUpOrSignInWithGoogleAccount, resendVerificationEmail, signOutUser } from '../lib/auth';
 import { CATEGORIES } from '../types/database';
 import type { MessageCategory } from '../types/database';
 
@@ -111,6 +111,9 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
       expect(signinRes.success).toBe(true);
       expect(signinRes.user?.email).toBe(uniqueEmail);
       expect(signinRes.profile?.username).toBe(uniqueUsername);
+
+      // Sign out to clean up session state
+      await signOutUser();
     });
 
     it('rejects sign in with incorrect password', async () => {
