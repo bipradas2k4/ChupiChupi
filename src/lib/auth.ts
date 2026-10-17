@@ -131,17 +131,25 @@ export function clearActiveLocalSession(): void {
  * Works with real Supabase Auth when configured, and falls back to persistent storage seamlessly!
  */
 export async function signUpWithEmail(
-  email: string,
+  email: string | undefined,
   pass: string,
   username: string,
   displayName: string
 ): Promise<AuthResponse> {
-  const cleanEmail = email.trim();
-  const cleanUsername = username.trim().toLowerCase();
-  const cleanName = displayName.trim();
+  const rawEmail = (email || '').trim();
+  const cleanUsername = username.trim().toLowerCase().replace(/^@+/, '');
+  const cleanName = displayName.trim() || cleanUsername;
 
-  if (!cleanEmail || !pass) {
-    return { success: false, error: 'ইমেইল এবং পাসওয়ার্ড আবশ্যক (Email and password are required).' };
+  if (!pass) {
+    return { success: false, error: 'পাসওয়ার্ড আবশ্যক (Password is required).' };
+  }
+
+  if (pass.length < 6) {
+    return { success: false, error: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।' };
+  }
+
+  if (!cleanUsername) {
+    return { success: false, error: 'ইউজারনেম প্রদান করা আবশ্যক (Username is required).' };
   }
 
   if (!USERNAME_REGEX.test(cleanUsername)) {
@@ -155,8 +163,14 @@ export async function signUpWithEmail(
     return { success: false, error: 'ডিসপ্লে নাম কমপক্ষে ২ অক্ষরের হতে হবে।' };
   }
 
-  if (pass.length < 6) {
-    return { success: false, error: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।' };
+  // If email is provided, validate it; otherwise auto-generate an internal auth email
+  let cleanEmail = rawEmail;
+  if (rawEmail) {
+    if (!rawEmail.includes('@') || rawEmail.length < 5) {
+      return { success: false, error: 'অনুগ্রহ করে সঠিক ইমেইল ঠিকানা লিখুন অথবা ইমেইল ঘরটি খালি রাখুন।' };
+    }
+  } else {
+    cleanEmail = `${cleanUsername}@chupichupi.me`;
   }
 
   const client = getSupabaseClient();
@@ -411,11 +425,14 @@ export async function resendVerificationEmail(email: string): Promise<{ success:
  * Seamlessly resolves usernames to emails and checks Supabase Auth first!
  */
 export async function signInWithEmail(emailOrUsername: string, pass: string): Promise<AuthResponse> {
-  const cleanInput = emailOrUsername.trim();
+  const rawInput = (emailOrUsername || '').trim();
 
-  if (!cleanInput || !pass) {
-    return { success: false, error: 'ইমেইল এবং পাসওয়ার্ড প্রদান করুন।' };
+  if (!rawInput || !pass) {
+    return { success: false, error: 'ইমেইল অথবা ইউজারনেম এবং পাসওয়ার্ড প্রদান করুন।' };
   }
+
+  // Strip all leading '@' characters (e.g. "@anirban" -> "anirban", "@user@gmail.com" -> "user@gmail.com")
+  const cleanInput = rawInput.replace(/^@+/, '').trim();
 
   const client = getSupabaseClient();
   const { isConfigured } = getSupabaseCredentials();
@@ -426,9 +443,9 @@ export async function signInWithEmail(emailOrUsername: string, pass: string): Pr
       let resolvedEmail = cleanInput;
       const isUsernameQuery = !cleanInput.includes('@');
 
-      // If user typed a username without @, resolve their email from Supabase
+      // If user typed a username (no '@' after stripping leading '@'), resolve their email from Supabase
       if (isUsernameQuery) {
-        const cleanUser = cleanInput.toLowerCase().replace(/^@/, '');
+        const cleanUser = cleanInput.toLowerCase();
         try {
           // 1. Try RPC resolver
           const { data: rpcEmail } = await client.rpc('get_email_by_username', { p_username: cleanUser });
@@ -438,24 +455,18 @@ export async function signInWithEmail(emailOrUsername: string, pass: string): Pr
             // 2. Try profiles table lookup
             const { data: prof } = await client
               .from('profiles')
-              .select('id, username')
+              .select('id, username, email')
               .ilike('username', cleanUser)
               .maybeSingle();
-            if (prof) {
-              const { data: rpcEmail2 } = await client.rpc('get_email_by_username', { p_username: prof.username });
-              if (rpcEmail2) resolvedEmail = rpcEmail2;
+            if (prof?.email) {
+              resolvedEmail = prof.email;
+            } else {
+              // 3. Check for internal default auth email format
+              resolvedEmail = `${cleanUser}@chupichupi.me`;
             }
           }
         } catch {
           // ignore resolution error
-        }
-
-        // If username could not be resolved from Supabase
-        if (resolvedEmail === cleanInput) {
-          return {
-            success: false,
-            error: `@${cleanUser} ইউজারনেমের কোনো নিবন্ধিত অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইউজারনেম অথবা আপনার ইমেইল দিয়ে লগইন করুন।`
-          };
         }
       }
 

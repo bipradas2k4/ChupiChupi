@@ -128,8 +128,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
       return;
     }
 
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setErrorMessage('অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা লিখুন (যেমন: name@example.com)');
+    if (trimmedEmail && (!trimmedEmail.includes('@') || trimmedEmail.length < 5)) {
+      setErrorMessage('অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা লিখুন অথবা ঘরটি খালি রাখুন।');
       setErrorField('email');
       const el = document.getElementById('signup-email-input');
       el?.focus();
@@ -632,13 +632,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Mail size={14} />
-                <span>ইমেইল ঠিকানা (Email)</span>
+                <span>ইমেইল ঠিকানা (Email — ঐচ্ছিক / Optional)</span>
               </label>
               <input
                 type="email"
                 id="signup-email-input"
                 className="form-input"
-                placeholder="name@example.com"
+                placeholder="name@example.com (ইমেইল ছাড়াই একাউন্ট খোলা যাবে)"
                 value={email}
                 onChange={(e) => handleFieldChange('email', setEmail, e.target.value)}
                 style={{
@@ -646,6 +646,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   boxShadow: errorField === 'email' ? '0 0 0 2px rgba(239, 68, 68, 0.25)' : undefined
                 }}
               />
+              <div style={{ fontSize: '0.75rem', color: '#a8998b', marginTop: '0.3rem' }}>
+                💡 ইমেইল না দিলেও চলবে, আপনার ইউজারনেম দিয়েই লগইন করতে পারবেন।
+              </div>
             </div>
 
             {/* Password */}

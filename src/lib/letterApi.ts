@@ -26,7 +26,7 @@ async function getClientHash(): Promise<string> {
 // Fallback demo letterbox when no Supabase credentials are configured
 export const DEMO_PROFILES: Record<string, Profile> = {
   anirban: {
-    id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
+    id: '1a62c184-663e-424e-a413-17f09ff0999d',
     username: 'anirban',
     display_name: 'অনির্বাণ মুখোপাধ্যায়',
     avatar_url: null,
@@ -40,7 +40,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
     updated_at: new Date().toISOString()
   },
   priya: {
-    id: 'aa761b65-6915-494b-a6b3-4cab0db652b6',
+    id: '996811b2-3c70-4e24-afb9-ea48fdf7da8b',
     username: 'priya',
     display_name: 'প্রিয়া সেনগুপ্ত',
     avatar_url: null,
@@ -54,7 +54,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
     updated_at: new Date().toISOString()
   },
   tashfeen: {
-    id: '0bb2319b-0309-484b-92f5-364cc3f00c2a',
+    id: 'd0586451-8332-47ad-9a97-425bdc873886',
     username: 'tashfeen',
     display_name: 'তাশফীন রহমান',
     avatar_url: null,
@@ -73,7 +73,7 @@ export const DEMO_PROFILES: Record<string, Profile> = {
 let localMockMessages: Message[] = [
   {
     id: 'msg-demo-1',
-    recipient_id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
+    recipient_id: '1a62c184-663e-424e-a413-17f09ff0999d',
     category: 'secret',
     content: 'তোমার লেখার হাত অসাধারণ! কলেজে দূর থেকে তোমার আবৃত্তি শুনতাম, কিন্তু কখনো সামনে গিয়ে বলার সাহস হয়নি। ভালো থেকো।',
     reaction: '❤️',
@@ -86,7 +86,7 @@ let localMockMessages: Message[] = [
   },
   {
     id: 'msg-demo-2',
-    recipient_id: '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3',
+    recipient_id: '1a62c184-663e-424e-a413-17f09ff0999d',
     category: 'compliment',
     content: 'তোমার হাসিটায় এক অদ্ভুত মায়া আছে, সারা দিনের ক্লান্তি মুছে যায়!',
     reaction: '🌸',
@@ -335,9 +335,9 @@ export async function getInboxMessages(
   recipientId: string, 
   username?: string
 ): Promise<{ messages: Message[]; isRealBackend: boolean; error?: string }> {
-  const cleanRecipientId = recipientId === 'demo-anirban-id' ? '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3'
-    : recipientId === 'demo-priya-id' ? 'aa761b65-6915-494b-a6b3-4cab0db652b6'
-    : recipientId === 'demo-tashfeen-id' ? '0bb2319b-0309-484b-92f5-364cc3f00c2a'
+  const cleanRecipientId = recipientId === 'demo-anirban-id' ? '1a62c184-663e-424e-a413-17f09ff0999d'
+    : recipientId === 'demo-priya-id' ? '996811b2-3c70-4e24-afb9-ea48fdf7da8b'
+    : recipientId === 'demo-tashfeen-id' ? 'd0586451-8332-47ad-9a97-425bdc873886'
     : recipientId;
 
   const client = getSupabaseClient();
@@ -381,7 +381,7 @@ export async function getInboxMessages(
 
   const cleanUser = username?.toLowerCase().replace(/^@/, '');
   const localMsgs = getLocalMessages().filter(
-    m => m.recipient_id === recipientId || (cleanUser && m.recipient_id === `usr_${cleanUser}`)
+    m => m.recipient_id === recipientId || m.recipient_id === cleanRecipientId || (cleanUser && m.recipient_id === `usr_${cleanUser}`)
   );
   const combined = [...supabaseMessages, ...localMsgs];
   const map = new Map<string, Message>();
@@ -393,13 +393,13 @@ export async function getInboxMessages(
   );
 
   const mappedMessages = uniqueMessages.map(m => {
-    if (recipientId === 'demo-anirban-id' && (m.recipient_id === '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3' || m.recipient_id === 'demo-anirban-id')) {
+    if (recipientId === 'demo-anirban-id' && (m.recipient_id === '1a62c184-663e-424e-a413-17f09ff0999d' || m.recipient_id === '3cc298a3-82df-40c9-92b9-fc4e7a0d4ec3' || m.recipient_id === 'demo-anirban-id')) {
       return { ...m, recipient_id: 'demo-anirban-id' };
     }
-    if (recipientId === 'demo-priya-id' && (m.recipient_id === 'aa761b65-6915-494b-a6b3-4cab0db652b6' || m.recipient_id === 'demo-priya-id')) {
+    if (recipientId === 'demo-priya-id' && (m.recipient_id === '996811b2-3c70-4e24-afb9-ea48fdf7da8b' || m.recipient_id === 'aa761b65-6915-494b-a6b3-4cab0db652b6' || m.recipient_id === 'demo-priya-id')) {
       return { ...m, recipient_id: 'demo-priya-id' };
     }
-    if (recipientId === 'demo-tashfeen-id' && (m.recipient_id === '0bb2319b-0309-484b-92f5-364cc3f00c2a' || m.recipient_id === 'demo-tashfeen-id')) {
+    if (recipientId === 'demo-tashfeen-id' && (m.recipient_id === 'd0586451-8332-47ad-9a97-425bdc873886' || m.recipient_id === '0bb2319b-0309-484b-92f5-364cc3f00c2a' || m.recipient_id === 'demo-tashfeen-id')) {
       return { ...m, recipient_id: 'demo-tashfeen-id' };
     }
     return m;

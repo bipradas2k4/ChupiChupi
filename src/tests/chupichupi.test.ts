@@ -76,13 +76,32 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
     });
 
     it('rejects registration with invalid email or weak password', async () => {
-      const emptyEmailRes = await signUpWithEmail('', 'password123', 'testuser', 'Test User');
-      expect(emptyEmailRes.success).toBe(false);
-      expect(emptyEmailRes.error).toContain('ইমেইল এবং পাসওয়ার্ড আবশ্যক');
+      const invalidEmailRes = await signUpWithEmail('invalid-email-format', 'password123', 'testuser', 'Test User');
+      expect(invalidEmailRes.success).toBe(false);
+      expect(invalidEmailRes.error).toContain('সঠিক ইমেইল');
 
       const weakPassRes = await signUpWithEmail('test@example.com', '123', 'testuser', 'Test User');
       expect(weakPassRes.success).toBe(false);
       expect(weakPassRes.error).toContain('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের');
+    });
+
+    it('allows user to sign up with username alone (email optional)', async () => {
+      const uName = 'user_noemail_' + Date.now().toString(36);
+      const res = await signUpWithEmail('', 'password123', uName, 'ইউজারনেম ব্যবহারকারী');
+      expect(res.success).toBe(true);
+      expect(res.profile?.username).toBe(uName);
+
+      // Sign in with username alone
+      const signinRes = await signInWithEmail(uName, 'password123');
+      expect(signinRes.success).toBe(true);
+      expect(signinRes.profile?.username).toBe(uName);
+
+      // Sign in with @-prefixed username
+      const atSigninRes = await signInWithEmail(`@${uName}`, 'password123');
+      expect(atSigninRes.success).toBe(true);
+      expect(atSigninRes.profile?.username).toBe(uName);
+
+      await signOutUser();
     });
   });
 
@@ -93,10 +112,10 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
     it('validates required fields on sign in', async () => {
       const res = await signInWithEmail('', '');
       expect(res.success).toBe(false);
-      expect(res.error).toContain('ইমেইল এবং পাসওয়ার্ড প্রদান করুন');
+      expect(res.error).toContain('ইমেইল অথবা ইউজারনেম');
     });
 
-    it('successfully signs up a new user and allows immediate sign in', async () => {
+    it('successfully signs up a new user and allows sign in via email or username', async () => {
       const uniqueUsername = 'test_' + Date.now().toString(36);
       const uniqueEmail = `${uniqueUsername}@example.com`;
       const pass = 'secret123';
@@ -106,13 +125,21 @@ describe('ChupiChupi (চুপিচুপি) - Guest-First Anonymous Messagin
       expect(signupRes.user).toBeDefined();
       expect(signupRes.profile?.username).toBe(uniqueUsername);
 
-      // Sign in with the newly registered user
-      const signinRes = await signInWithEmail(uniqueEmail, pass);
-      expect(signinRes.success).toBe(true);
-      expect(signinRes.user?.email).toBe(uniqueEmail);
-      expect(signinRes.profile?.username).toBe(uniqueUsername);
+      // Sign in with email
+      const emailSigninRes = await signInWithEmail(uniqueEmail, pass);
+      expect(emailSigninRes.success).toBe(true);
+      expect(emailSigninRes.profile?.username).toBe(uniqueUsername);
+      await signOutUser();
 
-      // Sign out to clean up session state
+      // Sign in with username
+      const usernameSigninRes = await signInWithEmail(uniqueUsername, pass);
+      expect(usernameSigninRes.success).toBe(true);
+      expect(usernameSigninRes.profile?.username).toBe(uniqueUsername);
+      await signOutUser();
+
+      // Sign in with @-prefixed email (e.g. @user@example.com)
+      const atEmailSigninRes = await signInWithEmail(`@${uniqueEmail}`, pass);
+      expect(atEmailSigninRes.success).toBe(true);
       await signOutUser();
     });
 
