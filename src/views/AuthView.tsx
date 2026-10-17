@@ -56,6 +56,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
   // Google Auth Coming Soon Modal
   const [showGoogleModal, setShowGoogleModal] = useState(false);
 
+  const formatAuthError = (msg?: string | null): string => {
+    if (!msg) return 'একটি সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+    if (msg.toLowerCase().includes('failed to fetch')) {
+      return 'সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি (নেটওয়ার্ক সমস্যা)। অনুগ্রহ করে পেজটি রিফ্রেশ করুন অথবা কিছুক্ষণ পর চেষ্টা করুন।';
+    }
+    return msg;
+  };
+
   const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
 
   const handleFieldChange = (field: string, setter: (val: any) => void, val: any) => {
@@ -187,13 +195,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
           setInfoMessage(res.message || 'নিবন্ধন সম্পন্ন হয়েছে! আপনার চিঠির বাক্স প্রস্তুত।');
         }
       } else {
-        setErrorMessage(res.error || 'নিবন্ধন সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।');
+        setErrorMessage(formatAuthError(res.error || 'নিবন্ধন সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'));
         const alertEl = document.getElementById('signup-submit-btn');
         alertEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } catch (err: any) {
       setLoading(false);
-      setErrorMessage(err?.message || 'একটি সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      setErrorMessage(formatAuthError(err?.message || 'একটি সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'));
     }
   };
 
@@ -237,7 +245,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       } else if (res.requiresEmailVerification) {
         setVerificationEmail(res.unverifiedEmail || trimmedEmail);
         setNeedsVerificationNotice(true);
-        setErrorMessage(res.error || 'আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি।');
+        setErrorMessage(formatAuthError(res.error || 'আপনার ইমেইলটি এখনও ভেরিফাই করা হয়নি।'));
         const alertEl = document.getElementById('signin-submit-btn');
         alertEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (res.success && res.user) {
@@ -258,13 +266,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
         onSuccess(res.user, fallbackProf);
       } else {
         setNeedsVerificationNotice(false);
-        setErrorMessage(res.error || 'লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড সঠিক কিনা পরীক্ষা করুন।');
+        setErrorMessage(formatAuthError(res.error || 'লগইন ব্যর্থ হয়েছে। ইমেইল ও পাসওয়ার্ড সঠিক কিনা পরীক্ষা করুন।'));
         const alertEl = document.getElementById('signin-submit-btn');
         alertEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } catch (err: any) {
       setLoading(false);
-      setErrorMessage(err?.message || 'লগইন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      setErrorMessage(formatAuthError(err?.message || 'লগইন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'));
     }
   };
 

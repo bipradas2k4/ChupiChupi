@@ -13,12 +13,21 @@ const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
   // Auto-purge stale or deleted project credentials and dummy accounts from browser storage
   if (typeof window !== 'undefined') {
-    const storedUrl = localStorage.getItem(STORAGE_URL_KEY);
-    if (storedUrl && (!storedUrl.includes('wfssqoirmhvlpudooigx') || storedUrl.includes('umpakazcsoibdlbdyalp'))) {
-      localStorage.removeItem(STORAGE_URL_KEY);
-      localStorage.removeItem(STORAGE_KEY_KEY);
-      localStorage.removeItem('chupichupi_local_accounts');
-      localStorage.removeItem('chupichupi_active_session');
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('umpakazcsoibdlbdyalp')) {
+          localStorage.removeItem(key);
+        }
+      });
+      const storedUrl = localStorage.getItem(STORAGE_URL_KEY);
+      if (storedUrl && (!storedUrl.includes('wfssqoirmhvlpudooigx') || storedUrl.includes('umpakazcsoibdlbdyalp'))) {
+        localStorage.removeItem(STORAGE_URL_KEY);
+        localStorage.removeItem(STORAGE_KEY_KEY);
+        localStorage.removeItem('chupichupi_local_accounts');
+        localStorage.removeItem('chupichupi_active_session');
+      }
+    } catch {
+      // Ignore storage errors
     }
   }
 
@@ -28,8 +37,19 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isConf
   const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_URL_KEY) : null;
   const storedKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_KEY) : null;
 
-  const url = (storedUrl || envUrl || DEFAULT_SUPABASE_URL).trim();
-  const anonKey = (storedKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();
+  // Filter out any stale/deleted project references or placeholders
+  const isHealthyUrl = (u?: string | null) => 
+    Boolean(u && !u.includes('umpakazcsoibdlbdyalp') && !u.includes('your-project-id') && u.startsWith('http'));
+  const isHealthyKey = (k?: string | null) => 
+    Boolean(k && !k.includes('umpakazcsoibdlbdyalp') && !k.includes('your-anon-key') && k.length > 20);
+
+  const cleanStoredUrl = isHealthyUrl(storedUrl) ? storedUrl : null;
+  const cleanStoredKey = isHealthyKey(storedKey) ? storedKey : null;
+  const cleanEnvUrl = isHealthyUrl(envUrl) ? envUrl : null;
+  const cleanEnvKey = isHealthyKey(envKey) ? envKey : null;
+
+  const url = (cleanStoredUrl || cleanEnvUrl || DEFAULT_SUPABASE_URL).trim();
+  const anonKey = (cleanStoredKey || cleanEnvKey || DEFAULT_SUPABASE_ANON_KEY).trim();
 
   const isConfigured = 
     Boolean(url) && 
